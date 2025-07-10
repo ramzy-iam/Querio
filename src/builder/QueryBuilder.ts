@@ -56,15 +56,40 @@ export class QueryBuilder<T> {
 
   // Where methods
   where(condition: WhereCondition<T>): this {
-    // Si il y a déjà des conditions, on les remplace par la nouvelle
+    // Check if condition is an empty object
+    if (this.isEmptyCondition(condition)) {
+      this.whereConditions = [];
+      return this;
+    }
+    
+    // If there are no existing conditions, start fresh
+    // If there are existing conditions, this replaces them (original behavior)
     this.whereConditions = [condition];
     return this;
   }
 
   andWhere(condition: WhereCondition<T>): this {
-    // andWhere ajoute une condition AND - peut être utilisé sans where initial
+    // Check if condition is an empty object
+    if (this.isEmptyCondition(condition)) {
+      return this;
+    }
+    // andWhere adds a condition - can be used without initial where
     this.whereConditions.push(condition);
     return this;
+  }
+
+  private isEmptyCondition(condition: WhereCondition<T>): boolean {
+    if (!condition || typeof condition !== 'object') return false;
+    
+    // Check if it's an empty object
+    const keys = Object.keys(condition);
+    if (keys.length === 0) return true;
+    
+    // Check if all values are undefined
+    return keys.every(key => {
+      const value = (condition as any)[key];
+      return value === undefined;
+    });
   }
 
   orWhere(condition: WhereCondition<T>): this {

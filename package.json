@@ -8,6 +8,9 @@
     "build": "tsc",
     "dev": "tsc --watch",
     "test": "jest",
+    "test:integration": "jest tests/repository.integration.test.ts",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
     "example:db": "ts-node examples/db.ts",
     "example:usage": "ts-node examples/usage.ts",
     "start": "node dist/index.js",
@@ -16,13 +19,19 @@
     "prepare": "pnpm build"
   },
   "packageManager": "pnpm@8.0.0",
-  "keywords": ["orm", "typescript", "postgresql", "query-builder"],
+  "keywords": [
+    "orm",
+    "typescript",
+    "postgresql",
+    "query-builder"
+  ],
   "author": "Querio Team",
   "license": "MIT",
   "dependencies": {
     "pg": "^8.11.3"
   },
   "devDependencies": {
+    "@types/jest": "^30.0.0",
     "@types/node": "^20.10.0",
     "@types/pg": "^8.10.7",
     "jest": "^29.7.0",
