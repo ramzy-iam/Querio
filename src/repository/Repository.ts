@@ -60,7 +60,7 @@ export class Repository<T = any, S extends RepositoryScopes<T> = any> {
   }
 
   // Direct access to query builder methods (more reliable than model methods)
-  where(condition: any): QueryBuilder<T> {
+  where(condition: WhereCondition<T>): QueryBuilder<T> {
     return new QueryBuilder<T>(this.model.table, this.executor).where(condition);
   }
 
@@ -72,11 +72,17 @@ export class Repository<T = any, S extends RepositoryScopes<T> = any> {
   async getMany(): Promise<T[]>;
   async getMany<S extends SelectFields<T>>(options: {
     where?: WhereCondition<T>;
-    select?: S;
+    select: S;
     orderBy?: { field: keyof T; direction?: 'asc' | 'desc' };
     limit?: number;
     offset?: number;
   }): Promise<SelectedType<T, S>[]>;
+  async getMany(options: {
+    where?: WhereCondition<T>;
+    orderBy?: { field: keyof T; direction?: 'asc' | 'desc' };
+    limit?: number;
+    offset?: number;
+  }): Promise<T[]>;
   async getMany<S extends SelectFields<T>>(options?: {
     where?: WhereCondition<T>;
     select?: S;
@@ -107,18 +113,18 @@ export class Repository<T = any, S extends RepositoryScopes<T> = any> {
     return qb.getMany();
   }
 
-  // Paginated getMany methods
+  // Paginated getMany methods with proper overloads
+  async getManyPaginated<S extends SelectFields<T>>(options: {
+    where?: WhereCondition<T>;
+    select: S;
+    orderBy?: { field: keyof T; direction?: 'asc' | 'desc' };
+    pagination: PaginationInput;
+  }): Promise<PaginationResult<SelectedType<T, S>>>;
   async getManyPaginated(options: {
     where?: WhereCondition<T>;
     orderBy?: { field: keyof T; direction?: 'asc' | 'desc' };
     pagination: PaginationInput;
   }): Promise<PaginationResult<T>>;
-  async getManyPaginated<S extends SelectFields<T>>(options: {
-    where?: WhereCondition<T>;
-    select?: S;
-    orderBy?: { field: keyof T; direction?: 'asc' | 'desc' };
-    pagination: PaginationInput;
-  }): Promise<PaginationResult<SelectedType<T, S>>>;
   async getManyPaginated<S extends SelectFields<T>>(options: {
     where?: WhereCondition<T>;
     select?: S;
@@ -177,9 +183,13 @@ export class Repository<T = any, S extends RepositoryScopes<T> = any> {
   async getOne(): Promise<T | null>;
   async getOne<S extends SelectFields<T>>(options: {
     where?: WhereCondition<T>;
-    select?: S;
+    select: S;
     orderBy?: { field: keyof T; direction?: 'asc' | 'desc' };
   }): Promise<SelectedType<T, S> | null>;
+  async getOne(options: {
+    where?: WhereCondition<T>;
+    orderBy?: { field: keyof T; direction?: 'asc' | 'desc' };
+  }): Promise<T | null>;
   async getOne<S extends SelectFields<T>>(options?: {
     where?: WhereCondition<T>;
     select?: S;
@@ -256,12 +266,12 @@ export class ScopedQueryBuilder<T> {
   }
 
   // Standard query builder methods
-  where(condition: any): this {
+  where(condition: WhereCondition<T>): this {
     this.queryBuilder = this.queryBuilder.where(condition);
     return this;
   }
 
-  andWhere(condition: any): this {
+  andWhere(condition: WhereCondition<T>): this {
     this.queryBuilder = this.queryBuilder.andWhere(condition);
     return this;
   }

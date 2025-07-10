@@ -1,64 +1,19 @@
 import { 
-  defineModel, 
-  createRepository, 
-  PostgreSQLAdapter, 
   setGlobalExecutor,
-  text, 
-  uuid, 
-  integer,
-  boolean,
-  timestamp,
-  nullable 
+  PostgreSQLAdapter
 } from '../src/index';
-
-// Define test types for better type safety
-interface UserType {
-  id: string;
-  name: string;
-  email: string;
-  age: number | null;
-  isActive: boolean;
-  createdAt: Date;
-}
-
-interface AccountType {
-  id: string;
-  name: string;
-  userId: string;
-  balance: number;
-  isActive: boolean;
-  createdAt: Date;
-}
-
-// Define models with explicit types
-const User = defineModel<UserType>({
-  table: 'test_users',
-  fields: {
-    id: uuid({ primaryKey: true }),
-    name: text(),
-    email: text({ unique: true }),
-    age: nullable.integer(),
-    isActive: boolean({ default: true }),
-    createdAt: timestamp()
-  }
-});
-
-const Account = defineModel<AccountType>({
-  table: 'test_accounts',
-  fields: {
-    id: uuid({ primaryKey: true }),
-    name: text(),
-    userId: uuid(),
-    balance: integer({ default: 0 }),
-    isActive: boolean({ default: true }),
-    createdAt: timestamp()
-  }
-});
+import {
+  UserType,
+  AccountType,
+  UserRepository,
+  AccountRepository,
+  createTestRepositories
+} from './types';
 
 describe('Repository Integration Tests', () => {
   let dbAdapter: PostgreSQLAdapter;
-  let userRepository: any;
-  let accountRepository: any;
+  let userRepository: UserRepository;
+  let accountRepository: AccountRepository;
   let testUserIds: string[] = [];
 
   beforeAll(async () => {
@@ -80,26 +35,10 @@ describe('Repository Integration Tests', () => {
       throw new Error('Database connection failed. Please ensure PostgreSQL is running and the database exists.');
     }
 
-    // Create repositories with scopes
-    userRepository = createRepository(User, {
-      scopes: {
-        active: () => (qb: any) => qb.andWhere({ isActive: true }),
-        byAge: (minAge: number) => (qb: any) => qb.andWhere({ age: { gte: minAge } }),
-        byEmail: (email: string) => (qb: any) => qb.andWhere({ email }),
-        inactive: () => (qb: any) => qb.andWhere({ isActive: false }),
-      },
-      executor: dbAdapter
-    });
-
-    accountRepository = createRepository(Account, {
-      scopes: {
-        active: () => (qb: any) => qb.andWhere({ isActive: true }),
-        byUserId: (userId: string) => (qb: any) => qb.andWhere({ userId }),
-        withBalance: (minBalance: number) => (qb: any) => qb.andWhere({ balance: { gte: minBalance } }),
-        highBalance: () => (qb: any) => qb.andWhere({ balance: { gte: 10000 } }),
-      },
-      executor: dbAdapter
-    });
+    // Create repositories with proper typing
+    const repositories = createTestRepositories(dbAdapter);
+    userRepository = repositories.userRepository;
+    accountRepository = repositories.accountRepository;
 
     // Create test tables
     await createTestTables();
@@ -530,7 +469,7 @@ describe('Repository Integration Tests', () => {
         }
       });
       expect(users.length).toBeGreaterThan(0);
-      users.forEach((user: UserType) => {
+      users.forEach((user) => {
         expect(user.isActive).toBe(true);
         if (user.age !== null) {
           expect(user.age).toBeGreaterThanOrEqual(25);
@@ -554,14 +493,14 @@ describe('Repository Integration Tests', () => {
     });
 
     test('getMany() with orderBy, limit, and offset', async () => {
-      const users = await userRepository.getMany({
-        where: { isActive: true },
-        orderBy: { field: 'name', direction: 'asc' },
-        limit: 2,
-        offset: 1
-      });
+      const users = await userRepository
+        .where({ isActive: true })
+        .orderBy('name', 'asc')
+        .limit(2)
+        .offset(1)
+        .getMany();
       expect(users).toHaveLength(2);
-      // Should be ordered by name
+      // Should be ordered by name - now with proper UserType[] intellisense
       expect(users[0].name <= users[1].name).toBe(true);
     });
 
@@ -570,8 +509,8 @@ describe('Repository Integration Tests', () => {
         where: { email: 'john.test@example.com' }
       });
       expect(user).toBeTruthy();
-      expect(user.name).toBe('John Doe');
-      expect(user.email).toBe('john.test@example.com');
+      expect(user?.name).toBe('John Doe');
+      expect(user?.email).toBe('john.test@example.com');
     });
 
     test('getOne() with select fields', async () => {
@@ -704,8 +643,8 @@ describe('Repository Integration Tests', () => {
     });
 
     test('Nested logical operators', async () => {
-      const users = await userRepository.getMany({
-        where: {
+      const users = await userRepository
+        .where({
           AND: [
             { isActive: true },
             {
@@ -715,8 +654,8 @@ describe('Repository Integration Tests', () => {
               ]
             }
           ]
-        }
-      });
+        })
+        .getMany();
       expect(users.length).toBeGreaterThan(0);
       users.forEach((user: UserType) => {
         expect(user.isActive).toBe(true);
@@ -811,7 +750,7 @@ describe('Repository Integration Tests', () => {
         .getOne();
       
       expect(user).toBeTruthy();
-      expect(user.isActive).toBe(true);
+      expect(user?.isActive).toBe(true);
     });
 
     test('scoped pluck', async () => {
@@ -920,7 +859,7 @@ describe('Repository Integration Tests', () => {
     test('should handle invalid where conditions gracefully', async () => {
       try {
         await userRepository.getMany({
-          where: { nonExistentField: 'value' }
+          where: { nonExistentField: 'value' } as any
         });
         // If no error is thrown, that's fine too (depends on implementation)
       } catch (error) {
@@ -931,7 +870,7 @@ describe('Repository Integration Tests', () => {
     test('should handle invalid select fields gracefully', async () => {
       try {
         await userRepository.getMany({
-          select: { nonExistentField: true }
+          select: { nonExistentField: true } as any,
         });
         // If no error is thrown, that's fine too (depends on implementation)
       } catch (error) {

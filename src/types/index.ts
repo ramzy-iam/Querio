@@ -215,3 +215,15 @@ export interface RelationDefinition {
 }
 
 export type RelationsDefinition = Record<string, RelationDefinition>;
+
+// Repository type utilities for creating strongly typed specific repositories
+export type RepositoryType<T, S extends Record<string, any> = {}> = import('../repository/Repository').Repository<T, S> & import('../repository/Repository').ScopeMethods<T, S>;
+
+// Utility type to infer the entity type from a repository
+export type EntityFromRepository<R> = R extends RepositoryType<infer T, any> ? T : never;
+
+// Utility type to infer the scopes type from a repository  
+export type ScopesFromRepository<R> = R extends RepositoryType<any, infer S> ? S : never;
+
+// Type for the createRepository function result
+export type CreatedRepository<T, S extends Record<string, any> = {}> = RepositoryType<T, S>;
