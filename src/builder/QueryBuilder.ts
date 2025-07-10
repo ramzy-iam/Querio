@@ -26,6 +26,29 @@ export class QueryBuilder<T> {
     private fieldsDefinition: FieldsDefinition = {}
   ) {}
 
+  // Clone method to create a deep copy of the query builder
+  clone(): QueryBuilder<T> {
+    const cloned = new QueryBuilder<T>(this.tableName, this.executor, this.fieldsDefinition);
+    
+    // Deep copy all the query state
+    cloned.whereConditions = [...this.whereConditions.map(condition => 
+      JSON.parse(JSON.stringify(condition))
+    )];
+    cloned.orderByConditions = [...this.orderByConditions.map(order => 
+      typeof order === 'string' ? order : JSON.parse(JSON.stringify(order))
+    )];
+    cloned.joinConditions = [...this.joinConditions.map(join => ({ ...join }))];
+    
+    if (this.limitValue !== undefined) {
+      cloned.limitValue = this.limitValue;
+    }
+    if (this.offsetValue !== undefined) {
+      cloned.offsetValue = this.offsetValue;
+    }
+    
+    return cloned;
+  }
+
   // Helper method to convert entity field names to database column names
   private getColumnName(field: string): string {
     return getColumnName(field, this.fieldsDefinition[field]);

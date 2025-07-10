@@ -215,7 +215,30 @@ async function demonstrateQuerioWithDB() {
       });
       console.log('One user with select:', oneUserWithSelect);
 
-    
+    // Test pagination with getManyPaginated
+    const paginatedUsers = await userRepository.getManyPaginated({
+      where: { isActive: true },
+      orderBy: { field: 'name', direction: 'asc' },
+      pagination: { page: 1, pageSize: 2 }
+    });
+    console.log('Paginated users (page 1, size 2):', paginatedUsers);
+
+    // Test pagination with select
+    const paginatedUsersWithSelect = await userRepository.getManyPaginated({
+      where: { isActive: true },
+      select: { name: true, email: true },
+      orderBy: { field: 'age', direction: 'asc' },
+      pagination: { page: 1, pageSize: 1 }
+    });
+    console.log('Paginated users with select:', paginatedUsersWithSelect);
+
+    // Test scoped pagination
+    const scopedPaginated = await userRepository.scoped
+      .active()
+      .orderBy('createdAt', 'desc')
+      .getManyPaginated({ page: 1, pageSize: 3 });
+    console.log('Scoped paginated users:', scopedPaginated);
+
 
 
 

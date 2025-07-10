@@ -9,6 +9,24 @@ export interface RepositoryScopes<T> {
   [scopeName: string]: ScopeFactory<T>;
 }
 
+// Pagination interfaces
+export interface PaginationInput {
+  page: number;        // Page number (1-based)
+  pageSize: number;    // Number of items per page
+}
+
+export interface PaginationResult<T> {
+  data: T[];
+  pagination: {
+    currentPage: number;
+    pageSize: number;
+    totalItems: number;
+    totalPages: number;
+    hasNextPage: boolean;
+    hasPreviousPage: boolean;
+  };
+}
+
 // Type to convert scope factories into scope methods that return ScopedQueryBuilder
 export type ScopeMethods<T, S extends RepositoryScopes<T>> = {
   [K in keyof S]: S[K] extends (...args: infer A) => any 
@@ -87,6 +105,72 @@ export class Repository<T = any, S extends RepositoryScopes<T> = any> {
     }
     
     return qb.getMany();
+  }
+
+  // Paginated getMany methods
+  async getManyPaginated(options: {
+    where?: WhereCondition<T>;
+    orderBy?: { field: keyof T; direction?: 'asc' | 'desc' };
+    pagination: PaginationInput;
+  }): Promise<PaginationResult<T>>;
+  async getManyPaginated<S extends SelectFields<T>>(options: {
+    where?: WhereCondition<T>;
+    select?: S;
+    orderBy?: { field: keyof T; direction?: 'asc' | 'desc' };
+    pagination: PaginationInput;
+  }): Promise<PaginationResult<SelectedType<T, S>>>;
+  async getManyPaginated<S extends SelectFields<T>>(options: {
+    where?: WhereCondition<T>;
+    select?: S;
+    orderBy?: { field: keyof T; direction?: 'asc' | 'desc' };
+    pagination: PaginationInput;
+  }): Promise<PaginationResult<T> | PaginationResult<SelectedType<T, S>>> {
+    const { pagination } = options;
+    const offset = (pagination.page - 1) * pagination.pageSize;
+
+    // Build base query for counting
+    let countQb = new QueryBuilder<T>(this.model.table, this.executor);
+    if (options.where) {
+      countQb = countQb.where(options.where);
+    }
+    
+    // Get total count
+    const totalItems = await countQb.count();
+    const totalPages = Math.ceil(totalItems / pagination.pageSize);
+
+    // Build query for data
+    let dataQb = new QueryBuilder<T>(this.model.table, this.executor);
+    if (options.where) {
+      dataQb = dataQb.where(options.where);
+    }
+    if (options.orderBy) {
+      dataQb = dataQb.orderBy(options.orderBy.field, options.orderBy.direction);
+    }
+    
+    dataQb = dataQb.limit(pagination.pageSize).offset(offset);
+
+    // Execute query
+    let data: any;
+    if (options.select) {
+      data = await dataQb.select(options.select).getMany();
+    } else {
+      data = await dataQb.getMany();
+    }
+
+    // Build pagination result
+    const paginationResult = {
+      data,
+      pagination: {
+        currentPage: pagination.page,
+        pageSize: pagination.pageSize,
+        totalItems,
+        totalPages,
+        hasNextPage: pagination.page < totalPages,
+        hasPreviousPage: pagination.page > 1,
+      },
+    };
+
+    return paginationResult;
   }
 
   // Enhanced getOne with options
@@ -228,6 +312,37 @@ export class ScopedQueryBuilder<T> {
 
   async delete(): Promise<T[]> {
     return this.queryBuilder.delete();
+  }
+
+  // Clone method for scoped query builder
+  clone(): ScopedQueryBuilder<T> {
+    const clonedQb = this.queryBuilder.clone();
+    const clonedScoped = new ScopedQueryBuilder(clonedQb, this.scopes);
+    return clonedScoped;
+  }
+
+  // Paginated methods for scoped query builder
+  async getManyPaginated(pagination: PaginationInput): Promise<PaginationResult<T>> {
+    const offset = (pagination.page - 1) * pagination.pageSize;
+
+    // Get total count with current query state
+    const totalItems = await this.queryBuilder.count();
+    const totalPages = Math.ceil(totalItems / pagination.pageSize);
+
+    // Apply pagination to current query builder
+    const data = await this.queryBuilder.limit(pagination.pageSize).offset(offset).getMany();
+
+    return {
+      data,
+      pagination: {
+        currentPage: pagination.page,
+        pageSize: pagination.pageSize,
+        totalItems,
+        totalPages,
+        hasNextPage: pagination.page < totalPages,
+        hasPreviousPage: pagination.page > 1,
+      },
+    };
   }
 }
 

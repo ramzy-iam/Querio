@@ -8,6 +8,7 @@ export * from './builder/QueryBuilder';
 
 // Repository exports
 export * from './repository/Repository';
+export type { PaginationInput, PaginationResult } from './repository/Repository';
 
 // Adapter exports
 export * from './adapters/postgres';
