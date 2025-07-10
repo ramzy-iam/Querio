@@ -74,22 +74,36 @@ export function mapRowsToEntities<T>(
   return rows.map(row => mapColumnsToFields<T>(row, fieldsDefinition));
 }
 
-// Simple where condition type that's more permissive
+// Base field condition type
+export type FieldCondition<T, K extends keyof T> = T[K] | {
+  eq?: T[K];
+  ne?: T[K];
+  gt?: T[K];
+  gte?: T[K];
+  lt?: T[K];
+  lte?: T[K];
+  like?: string;
+  ilike?: string;
+  in?: T[K][];
+  notIn?: T[K][];
+  isNull?: boolean;
+  isNotNull?: boolean;
+};
+
+// Enhanced where condition type with logical operators
 export type WhereCondition<T = any> = {
-  [K in keyof T]?: T[K] | {
-    eq?: T[K];
-    ne?: T[K];
-    gt?: T[K];
-    gte?: T[K];
-    lt?: T[K];
-    lte?: T[K];
-    like?: string;
-    ilike?: string;
-    in?: T[K][];
-    notIn?: T[K][];
-    isNull?: boolean;
-    isNotNull?: boolean;
-  };
+  [K in keyof T]?: FieldCondition<T, K>;
+} | {
+  AND?: WhereCondition<T>[];
+  OR?: WhereCondition<T>[];
+} | {
+  [K in keyof T]?: FieldCondition<T, K>;
+} & {
+  AND?: WhereCondition<T>[];
+} | {
+  [K in keyof T]?: FieldCondition<T, K>;
+} & {
+  OR?: WhereCondition<T>[];
 };
 
 // Order by types

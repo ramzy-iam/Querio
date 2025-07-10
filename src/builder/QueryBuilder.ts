@@ -275,42 +275,93 @@ export class QueryBuilder<T> {
     const clauses: string[] = [];
 
     conditions.forEach(condition => {
-      const conditionClauses: string[] = [];
-      
-      Object.entries(condition).forEach(([field, value]) => {
-        const columnName = this.getColumnName(field);
-        if (value !== undefined) {
-          if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
-            // Handle operators like { gt: 10 }
-            Object.entries(value).forEach(([operator, operatorValue]) => {
-              const sqlOperator = this.getSQLOperator(operator);
-              if (operator === 'in' || operator === 'notIn') {
-                const placeholders = (operatorValue as unknown[]).map(() => `$${paramIndex++}`).join(', ');
-                conditionClauses.push(`${columnName} ${sqlOperator} (${placeholders})`);
-                params.push(...(operatorValue as unknown[]));
-              } else if (operator === 'isNull' || operator === 'isNotNull') {
-                conditionClauses.push(`${columnName} ${sqlOperator}`);
-              } else {
-                conditionClauses.push(`${columnName} ${sqlOperator} $${paramIndex++}`);
-                params.push(operatorValue);
-              }
-            });
-          } else {
-            // Simple equality
-            conditionClauses.push(`${columnName} = $${paramIndex++}`);
-            params.push(value);
-          }
-        }
-      });
-
-      if (conditionClauses.length > 0) {
-        clauses.push(conditionClauses.join(' AND '));
+      const result = this.buildSingleCondition(condition, params, paramIndex);
+      if (result.clause) {
+        clauses.push(result.clause);
+        paramIndex = result.nextParamIndex;
       }
     });
 
     return {
       clause: clauses.join(' AND '),
       nextParamIndex: paramIndex
+    };
+  }
+
+  private buildSingleCondition(condition: WhereCondition<T>, params: unknown[], paramIndex: number): { clause: string; nextParamIndex: number } {
+    // Handle logical operators
+    if ('AND' in condition && condition.AND) {
+      const andClauses: string[] = [];
+      let currentParamIndex = paramIndex;
+      
+      condition.AND.forEach(subCondition => {
+        const result = this.buildSingleCondition(subCondition, params, currentParamIndex);
+        if (result.clause) {
+          andClauses.push(result.clause);
+          currentParamIndex = result.nextParamIndex;
+        }
+      });
+
+      return {
+        clause: andClauses.length > 0 ? `(${andClauses.join(' AND ')})` : '',
+        nextParamIndex: currentParamIndex
+      };
+    }
+
+    if ('OR' in condition && condition.OR) {
+      const orClauses: string[] = [];
+      let currentParamIndex = paramIndex;
+      
+      condition.OR.forEach(subCondition => {
+        const result = this.buildSingleCondition(subCondition, params, currentParamIndex);
+        if (result.clause) {
+          orClauses.push(result.clause);
+          currentParamIndex = result.nextParamIndex;
+        }
+      });
+
+      return {
+        clause: orClauses.length > 0 ? `(${orClauses.join(' OR ')})` : '',
+        nextParamIndex: currentParamIndex
+      };
+    }
+
+    // Handle regular field conditions
+    const conditionClauses: string[] = [];
+    let currentParamIndex = paramIndex;
+
+    Object.entries(condition).forEach(([field, value]) => {
+      // Skip logical operators
+      if (field === 'AND' || field === 'OR') return;
+      
+      const columnName = this.getColumnName(field);
+      if (value !== undefined) {
+        if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+          // Handle operators like { gt: 10 }
+          Object.entries(value).forEach(([operator, operatorValue]) => {
+            const sqlOperator = this.getSQLOperator(operator);
+            if (operator === 'in' || operator === 'notIn') {
+              const placeholders = (operatorValue as unknown[]).map(() => `$${currentParamIndex++}`).join(', ');
+              conditionClauses.push(`${columnName} ${sqlOperator} (${placeholders})`);
+              params.push(...(operatorValue as unknown[]));
+            } else if (operator === 'isNull' || operator === 'isNotNull') {
+              conditionClauses.push(`${columnName} ${sqlOperator}`);
+            } else {
+              conditionClauses.push(`${columnName} ${sqlOperator} $${currentParamIndex++}`);
+              params.push(operatorValue);
+            }
+          });
+        } else {
+          // Simple equality
+          conditionClauses.push(`${columnName} = $${currentParamIndex++}`);
+          params.push(value);
+        }
+      }
+    });
+
+    return {
+      clause: conditionClauses.length > 0 ? conditionClauses.join(' AND ') : '',
+      nextParamIndex: currentParamIndex
     };
   }
 

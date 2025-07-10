@@ -239,6 +239,65 @@ async function demonstrateQuerioWithDB() {
       .getManyPaginated({ page: 1, pageSize: 3 });
     console.log('Scoped paginated users:', scopedPaginated);
 
+    // Test logical operators (AND/OR)
+    console.log('\n--- Testing Logical Operators (AND/OR) ---');
+    
+    // Test OR operator
+    const usersWithOr = await userRepository.getMany({
+      where: {
+        OR: [
+          { name: 'John Doe' },
+          { name: 'Jane Smith' },
+          { age: { gte: 35 } }
+        ]
+      },
+      select: { name: true, age: true }
+    });
+    console.log('Users with OR conditions:', usersWithOr);
+
+    // Test AND operator
+    const usersWithAnd = await userRepository.getMany({
+      where: {
+        AND: [
+          { isActive: true },
+          { age: { gte: 20 } },
+          { name: { like: '%o%' } }
+        ]
+      },
+      select: { name: true, age: true, isActive: true }
+    });
+    console.log('Users with AND conditions:', usersWithAnd);
+
+    // Test mixed AND/OR
+    const usersWithMixed = await userRepository.getMany({
+      where: {
+        isActive: true,
+        OR: [
+          { age: { lt: 30 } },
+          { name: { like: '%Alice%' } }
+        ]
+      },
+      select: { name: true, age: true, isActive: true }
+    });
+    console.log('Users with mixed AND/OR conditions:', usersWithMixed);
+
+    // Test nested logical operators
+    const usersWithNested = await userRepository.getMany({
+      where: {
+        AND: [
+          { isActive: true },
+          {
+            OR: [
+              { age: { gte: 30 } },
+              { name: { like: '%Jane%' } }
+            ]
+          }
+        ]
+      },
+      select: { name: true, age: true, isActive: true }
+    });
+    console.log('Users with nested logical operators:', usersWithNested);
+
 
 
 
