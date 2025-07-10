@@ -12,6 +12,7 @@ export type { PaginationInput, PaginationResult } from './repository/Repository'
 
 // Adapter exports
 export * from './adapters/postgres';
+export type { LogLevel, LoggingConfig } from './adapters/postgres';
 
 // Re-export commonly used functions
 export { 
@@ -29,6 +30,14 @@ export {
   json, 
   nullable 
 } from './core/fields';
+
+// Logging functions
+export {
+  enableQueryLogging,
+  disableQueryLogging,
+  isQueryLoggingEnabled,
+  ConsoleQueryLogger
+} from './types';
 
 export { 
   createRepository 

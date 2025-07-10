@@ -1,6 +1,58 @@
 // Core types for Querio ORM
 export type FieldType = 'text' | 'uuid' | 'integer' | 'boolean' | 'timestamp' | 'decimal' | 'json';
 
+// Logging types
+export interface QueryLogEntry {
+  sql: string;
+  params: unknown[];
+  executionTime?: number;
+  timestamp: Date;
+  operation: 'SELECT' | 'INSERT' | 'UPDATE' | 'DELETE' | 'COUNT';
+}
+
+export interface QueryLogger {
+  log(entry: QueryLogEntry): void;
+}
+
+// Default console logger
+export class ConsoleQueryLogger implements QueryLogger {
+  constructor(private showTimestamp: boolean = true) {}
+
+  log(entry: QueryLogEntry): void {
+    const timestamp = this.showTimestamp ? `[${entry.timestamp.toISOString()}] ` : '';
+    const executionTime = entry.executionTime ? ` (${entry.executionTime}ms)` : '';
+    
+    console.log(`${timestamp}🔍 ${entry.operation} Query${executionTime}:`);
+    console.log(`   SQL: ${entry.sql}`);
+    if (entry.params.length > 0) {
+      console.log(`   Params: ${JSON.stringify(entry.params)}`);
+    }
+    console.log('');
+  }
+}
+
+// Global logging configuration
+let globalQueryLogger: QueryLogger | null = null;
+let loggingEnabled = false;
+
+export function enableQueryLogging(logger?: QueryLogger): void {
+  loggingEnabled = true;
+  globalQueryLogger = logger || new ConsoleQueryLogger();
+}
+
+export function disableQueryLogging(): void {
+  loggingEnabled = false;
+  globalQueryLogger = null;
+}
+
+export function isQueryLoggingEnabled(): boolean {
+  return loggingEnabled;
+}
+
+export function getQueryLogger(): QueryLogger | null {
+  return globalQueryLogger;
+}
+
 export interface FieldDefinition {
   type: FieldType;
   nullable?: boolean;

@@ -55,14 +55,17 @@ const Account = defineModel<AccountType>({
   }
 });
 
-// Configure database connection
+// Configure database connection with logging
 const dbAdapter = new PostgreSQLAdapter({
   host: process.env.DB_HOST || 'localhost',
   port: parseInt(process.env.DB_PORT || '5432'),
   database: process.env.DB_NAME || 'querio_test',
   user: process.env.DB_USER || 'postgres',
-  password: process.env.DB_PASSWORD || 'postgres'
+  password: process.env.DB_PASSWORD || 'postgres',
 });
+
+
+
 
 // Set global executor
 setGlobalExecutor(dbAdapter);
@@ -174,6 +177,7 @@ export async function seedData() {
 async function demonstrateQuerioWithDB() {
   console.log('🚀 Querio ORM - Real Database Test');
   console.log('===================================\n');
+  console.log('📝 Query logging enabled at connection level\n');
 
   try {
     // Test connection
@@ -298,9 +302,8 @@ async function demonstrateQuerioWithDB() {
     });
     console.log('Users with nested logical operators:', usersWithNested);
 
-
-
-
+    
+       
 
   } catch (error) {
     console.error('❌ Error during demonstration:', error);

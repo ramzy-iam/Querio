@@ -17,11 +17,6 @@ export interface ModelInstance<T = any> {
   getOne: () => Promise<T | null>;
   count: () => Promise<number>;
   
-  // Relation methods
-  with: (relations: string | string[]) => QueryBuilder<T>;
-  load: <R = any>(record: T, relation: string) => Promise<T & { [key: string]: R | R[] }>;
-  loadMany: <R = any>(records: T[], relation: string) => Promise<(T & { [key: string]: R | R[] })[]>;
-  
   // Order and limit methods
   orderBy: (field: keyof T, direction?: 'asc' | 'desc') => QueryBuilder<T>;
   limit: (count: number) => QueryBuilder<T>;
@@ -69,32 +64,7 @@ export function defineModel<T = any>(
     getOne: () => createQueryBuilder().getOne(),
     count: () => createQueryBuilder().count(),
     
-    // Relation methods
-    with: (_relations: string | string[]) => {
-      const qb = createQueryBuilder();
-      // TODO: Implement with functionality
-      return qb;
-    },
-    
-    load: async <R = any>(record: T, relation: string): Promise<T & { [key: string]: R | R[] }> => {
-      if (!definition.relations || !definition.relations[relation]) {
-        throw new Error(`Relation '${relation}' not defined`);
-      }
-      
-      // const relationDef = definition.relations[relation];
-      // TODO: Implement load functionality using relationLoader
-      return record as T & { [key: string]: R | R[] };
-    },
-    
-    loadMany: async <R = any>(records: T[], relation: string): Promise<(T & { [key: string]: R | R[] })[]> => {
-      if (!definition.relations || !definition.relations[relation]) {
-        throw new Error(`Relation '${relation}' not defined`);
-      }
-      
-      // const relationDef = definition.relations[relation];
-      // TODO: Implement loadMany functionality using relationLoader
-      return records as (T & { [key: string]: R | R[] })[];
-    },
+ 
     
     // Order and limit methods
     orderBy: (field, direction) => createQueryBuilder().orderBy(field, direction),
