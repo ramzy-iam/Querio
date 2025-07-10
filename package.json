@@ -8,6 +8,7 @@
     "build": "tsc",
     "dev": "tsc --watch",
     "test": "jest",
+    "example:db": "ts-node examples/db.ts",
     "example:usage": "ts-node examples/usage.ts",
     "start": "node dist/index.js",
     "clean": "rm -rf dist",
