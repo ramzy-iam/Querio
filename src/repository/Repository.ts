@@ -1,4 +1,4 @@
-import { QueryExecutor } from '../types';
+import { QueryExecutor, SelectFields, SelectedType, WhereCondition } from '../types';
 import { QueryBuilder } from '../builder/QueryBuilder';
 import { ModelInstance } from '../core/defineModel';
 
@@ -50,12 +50,72 @@ export class Repository<T = any, S extends RepositoryScopes<T> = any> {
     return new QueryBuilder<T>(this.model.table, this.executor).select(fields);
   }
 
-  async getMany(): Promise<T[]> {
-    return new QueryBuilder<T>(this.model.table, this.executor).getMany();
+  // Enhanced getMany with options
+  async getMany(): Promise<T[]>;
+  async getMany<S extends SelectFields<T>>(options: {
+    where?: WhereCondition<T>;
+    select?: S;
+    orderBy?: { field: keyof T; direction?: 'asc' | 'desc' };
+    limit?: number;
+    offset?: number;
+  }): Promise<SelectedType<T, S>[]>;
+  async getMany<S extends SelectFields<T>>(options?: {
+    where?: WhereCondition<T>;
+    select?: S;
+    orderBy?: { field: keyof T; direction?: 'asc' | 'desc' };
+    limit?: number;
+    offset?: number;
+  }): Promise<T[] | SelectedType<T, S>[]> {
+    let qb = new QueryBuilder<T>(this.model.table, this.executor);
+    
+    if (options) {
+      if (options.where) {
+        qb = qb.where(options.where);
+      }
+      if (options.orderBy) {
+        qb = qb.orderBy(options.orderBy.field, options.orderBy.direction);
+      }
+      if (options.limit) {
+        qb = qb.limit(options.limit);
+      }
+      if (options.offset) {
+        qb = qb.offset(options.offset);
+      }
+      if (options.select) {
+        return qb.select(options.select).getMany() as Promise<SelectedType<T, S>[]>;
+      }
+    }
+    
+    return qb.getMany();
   }
 
-  async getOne(): Promise<T | null> {
-    return new QueryBuilder<T>(this.model.table, this.executor).getOne();
+  // Enhanced getOne with options
+  async getOne(): Promise<T | null>;
+  async getOne<S extends SelectFields<T>>(options: {
+    where?: WhereCondition<T>;
+    select?: S;
+    orderBy?: { field: keyof T; direction?: 'asc' | 'desc' };
+  }): Promise<SelectedType<T, S> | null>;
+  async getOne<S extends SelectFields<T>>(options?: {
+    where?: WhereCondition<T>;
+    select?: S;
+    orderBy?: { field: keyof T; direction?: 'asc' | 'desc' };
+  }): Promise<T | SelectedType<T, S> | null> {
+    let qb = new QueryBuilder<T>(this.model.table, this.executor);
+    
+    if (options) {
+      if (options.where) {
+        qb = qb.where(options.where);
+      }
+      if (options.orderBy) {
+        qb = qb.orderBy(options.orderBy.field, options.orderBy.direction);
+      }
+      if (options.select) {
+        return qb.select(options.select).getOne() as Promise<SelectedType<T, S> | null>;
+      }
+    }
+    
+    return qb.getOne();
   }
 
   async pluck<K extends keyof T>(field: K): Promise<T[K][]> {

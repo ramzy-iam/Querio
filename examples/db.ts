@@ -192,13 +192,32 @@ async function demonstrateQuerioWithDB() {
 
     console.log('-----------------------------------------------');
 
+    // Test enhanced getMany with options and typed WhereCondition
+    const usersWithSelect = await userRepository.getMany({
+      where: { 
+        isActive: true,
+        age: { gte: 20, lt: 50 }  // Typage complet avec opérateurs !
+      },
+      select: { name: true, email: true, age: true },
+      orderBy: { field: 'name', direction: 'asc' },
+      limit: 1,
+      offset: 1
+    });
+    console.log('Users with select and typed where:', usersWithSelect);
 
-    const usersOver25 = await userRepository.scoped.byAge(50).getMany();
-    console.log('Users over 25:', usersOver25);
+      // Test enhanced getOne with options
+      const oneUserWithSelect = await userRepository.getOne({
+        where: { 
+          email: 'john@example.com',
+          isActive: true 
+        },
+        select: { id: true, name: true, age: true }
+      });
+      console.log('One user with select:', oneUserWithSelect);
 
-    // Test direct scope access on repository
-    const userByEmail = await userRepository.byEmail('john@example.com').getOne();
-    console.log('User by email:', userByEmail);
+    
+
+
 
 
   } catch (error) {
