@@ -104,17 +104,19 @@ export class Repository<T = any> {
     return results;
   }
 
-  // Additional convenient methods
+  // Additional convenient methods with proper typing
   async findById(id: string | number): Promise<T | null> {
     return this.getOne({ id } as WhereCondition<T>);
   }
 
-  async findBy(field: keyof T, value: any): Promise<T | null> {
-    return this.getOne({ [field]: value } as WhereCondition<T>);
+  async findBy<K extends keyof T>(field: K, value: T[K]): Promise<T | null> {
+    const condition = { [field]: value } as unknown as WhereCondition<T>;
+    return this.getOne(condition);
   }
 
-  async findManyBy(field: keyof T, value: any): Promise<T[]> {
-    return this.getMany({ [field]: value } as WhereCondition<T>);
+  async findManyBy<K extends keyof T>(field: K, value: T[K]): Promise<T[]> {
+    const condition = { [field]: value } as unknown as WhereCondition<T>;
+    return this.getMany(condition);
   }
 
   async exists(condition: WhereCondition<T>): Promise<boolean> {

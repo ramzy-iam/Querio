@@ -215,6 +215,20 @@ async function demonstrateQuerioWithDB() {
     const johnUser = await userRepository.findBy('name', 'John Doe');
     console.log('Found John:', johnUser?.email);
     
+    // Type-safe findBy examples
+    const userByEmail = await userRepository.findBy('email', 'jane@example.com');
+    console.log('Found by email:', userByEmail?.name);
+    
+    const userByAge = await userRepository.findBy('age', 30);
+    console.log('Found by age:', userByAge?.name);
+    
+    const userByStatus = await userRepository.findBy('isActive', true);
+    console.log('Found by status:', userByStatus?.name);
+    
+    // Find many by field
+    const activeUsersList = await userRepository.findManyBy('isActive', true);
+    console.log(`Found ${activeUsersList.length} active users by findManyBy`);
+    
     // Count with condition
     const activeCount = await userRepository.count({ isActive: true });
     console.log(`Active user count: ${activeCount}`);
