@@ -223,6 +223,286 @@ describe('Repository Integration Tests', () => {
     }
   }
 
+  describe('CRUD Operations (Create, Update, Delete)', () => {
+    test('create() should insert a new record', async () => {
+      const newUser = {
+        name: 'New User',
+        email: 'newuser@example.com',
+        age: 28,
+        isActive: true
+      };
+
+      const createdUser = await userRepository.create(newUser);
+      
+      expect(createdUser).toBeTruthy();
+      expect(createdUser.id).toBeDefined();
+      expect(createdUser.name).toBe('New User');
+      expect(createdUser.email).toBe('newuser@example.com');
+      expect(createdUser.age).toBe(28);
+      expect(createdUser.isActive).toBe(true);
+      expect(createdUser.createdAt).toBeDefined();
+
+      // Verify it was actually inserted
+      const foundUser = await userRepository.getOne({
+        where: { email: 'newuser@example.com' }
+      });
+      expect(foundUser).toBeTruthy();
+      expect(foundUser!.id).toBe(createdUser.id);
+    });
+
+    test('create() with partial data should use defaults', async () => {
+      const newUser = {
+        name: 'Minimal User',
+        email: 'minimal@example.com'
+      };
+
+      const createdUser = await userRepository.create(newUser);
+      
+      expect(createdUser.name).toBe('Minimal User');
+      expect(createdUser.email).toBe('minimal@example.com');
+      expect(createdUser.isActive).toBe(true); // Default value
+      expect(createdUser.age).toBeNull(); // Nullable field
+    });
+
+    test('createMany() should insert multiple records', async () => {
+      const newUsers = [
+        {
+          name: 'Bulk User 1',
+          email: 'bulk1@example.com',
+          age: 25,
+          isActive: true
+        },
+        {
+          name: 'Bulk User 2',
+          email: 'bulk2@example.com',
+          age: 30,
+          isActive: false
+        },
+        {
+          name: 'Bulk User 3',
+          email: 'bulk3@example.com'
+          // age and isActive will use defaults
+        }
+      ];
+
+      const createdUsers = await userRepository.createMany(newUsers);
+      
+      expect(createdUsers).toHaveLength(3);
+      
+      createdUsers.forEach((user: UserType, index: number) => {
+        expect(user.id).toBeDefined();
+        expect(user.name).toBe(newUsers[index].name);
+        expect(user.email).toBe(newUsers[index].email);
+        expect(user.createdAt).toBeDefined();
+      });
+
+      // Verify they were actually inserted
+      const allUsers = await userRepository.getMany();
+      expect(allUsers).toHaveLength(8); // 5 original + 3 new
+    });
+
+    test('createMany() with empty array should return empty array', async () => {
+      const result = await userRepository.createMany([]);
+      expect(result).toEqual([]);
+    });
+
+    test('update() should modify records matching where condition', async () => {
+      // Update all inactive users to active
+      const updatedUsers = await userRepository
+        .where({ isActive: false })
+        .update({ isActive: true });
+
+      expect(updatedUsers).toHaveLength(1); // Only Bob Wilson was inactive
+      expect(updatedUsers[0].isActive).toBe(true);
+      expect(updatedUsers[0].name).toBe('Bob Wilson');
+
+      // Verify the update was applied
+      const activeUsers = await userRepository.getMany({
+        where: { isActive: true }
+      });
+      expect(activeUsers).toHaveLength(5); // Now all 5 users should be active
+    });
+
+    test('update() should modify multiple fields', async () => {
+      const updatedUsers = await userRepository
+        .where({ email: 'john.test@example.com' })
+        .update({ 
+          name: 'John Updated',
+          age: 31
+        });
+
+      expect(updatedUsers).toHaveLength(1);
+      expect(updatedUsers[0].name).toBe('John Updated');
+      expect(updatedUsers[0].age).toBe(31);
+      expect(updatedUsers[0].email).toBe('john.test@example.com'); // Unchanged
+    });
+
+    test('update() with no matching records should return empty array', async () => {
+      const updatedUsers = await userRepository
+        .where({ email: 'nonexistent@example.com' })
+        .update({ name: 'Should Not Update' });
+
+      expect(updatedUsers).toHaveLength(0);
+    });
+
+    test('update() with scoped query', async () => {
+      // Update all active users over 30 to set age to 35
+      const updatedUsers = await userRepository.scoped
+        .active()
+        .andWhere({ age: { gte: 30 } })
+        .update({ age: 35 });
+
+      expect(updatedUsers.length).toBeGreaterThan(0);
+      updatedUsers.forEach((user: UserType) => {
+        expect(user.isActive).toBe(true);
+        expect(user.age).toBe(35);
+      });
+    });
+
+    test('delete() should remove records matching where condition', async () => {
+      // First, verify we have the expected number of users
+      const initialCount = await userRepository.count();
+      expect(initialCount).toBe(5);
+
+      // Delete inactive users
+      const deletedUsers = await userRepository
+        .where({ isActive: false })
+        .delete();
+
+      expect(deletedUsers).toHaveLength(1);
+      expect(deletedUsers[0].name).toBe('Bob Wilson');
+      expect(deletedUsers[0].isActive).toBe(false);
+
+      // Verify the user was actually deleted
+      const remainingCount = await userRepository.count();
+      expect(remainingCount).toBe(4);
+
+      // Verify the specific user is gone
+      const bobUser = await userRepository.getOne({
+        where: { email: 'bob.test@example.com' }
+      });
+      expect(bobUser).toBeNull();
+    });
+
+    test('delete() with multiple records', async () => {
+      // Delete users with age greater than 35
+      const deletedUsers = await userRepository
+        .where({ age: { gte: 35 } })
+        .delete();
+
+      expect(deletedUsers.length).toBeGreaterThan(0);
+      deletedUsers.forEach((user: UserType) => {
+        expect(user.age).toBeGreaterThanOrEqual(35);
+      });
+
+      // Verify they were deleted
+      const remainingUsers = await userRepository.getMany({
+        where: { age: { gte: 35 } }
+      });
+      expect(remainingUsers).toHaveLength(0);
+    });
+
+    test('delete() with no matching records should return empty array', async () => {
+      const deletedUsers = await userRepository
+        .where({ email: 'nonexistent@example.com' })
+        .delete();
+
+      expect(deletedUsers).toHaveLength(0);
+    });
+
+    test('delete() with scoped query', async () => {
+      const initialCount = await userRepository.count();
+      
+      // Delete all users with age >= 40
+      const deletedUsers = await userRepository.scoped
+        .andWhere({ age: { gte: 40 } })
+        .delete();
+
+      expect(deletedUsers.length).toBeGreaterThan(0);
+      deletedUsers.forEach((user: UserType) => {
+        expect(user.age).toBeGreaterThanOrEqual(40);
+      });
+
+      // Verify count decreased
+      const finalCount = await userRepository.count();
+      expect(finalCount).toBe(initialCount - deletedUsers.length);
+    });
+
+    test('create, update, then delete workflow', async () => {
+      // Create a user
+      const newUser = await userRepository.create({
+        name: 'Workflow User',
+        email: 'workflow@example.com',
+        age: 25,
+        isActive: true
+      });
+
+      expect(newUser.name).toBe('Workflow User');
+
+      // Update the user
+      const updatedUsers = await userRepository
+        .where({ id: newUser.id })
+        .update({ name: 'Updated Workflow User', age: 26 });
+
+      expect(updatedUsers).toHaveLength(1);
+      expect(updatedUsers[0].name).toBe('Updated Workflow User');
+      expect(updatedUsers[0].age).toBe(26);
+
+      // Delete the user
+      const deletedUsers = await userRepository
+        .where({ id: newUser.id })
+        .delete();
+
+      expect(deletedUsers).toHaveLength(1);
+      expect(deletedUsers[0].name).toBe('Updated Workflow User');
+
+      // Verify the user is gone
+      const foundUser = await userRepository.getOne({
+        where: { id: newUser.id }
+      });
+      expect(foundUser).toBeNull();
+    });
+  });
+
+  describe('Account CRUD Operations', () => {
+    test('create account for existing user', async () => {
+      const newAccount = await accountRepository.create({
+        name: 'New Account',
+        userId: testUserIds[0],
+        balance: 2500,
+        isActive: true
+      });
+
+      expect(newAccount).toBeTruthy();
+      expect(newAccount.id).toBeDefined();
+      expect(newAccount.name).toBe('New Account');
+      expect(newAccount.userId).toBe(testUserIds[0]);
+      expect(newAccount.balance).toBe(2500);
+      expect(newAccount.isActive).toBe(true);
+    });
+
+    test('update account balance', async () => {
+      const updatedAccounts = await accountRepository
+        .where({ name: 'Checking Account' })
+        .update({ balance: 1500 });
+
+      expect(updatedAccounts).toHaveLength(1);
+      expect(updatedAccounts[0].balance).toBe(1500);
+      expect(updatedAccounts[0].name).toBe('Checking Account');
+    });
+
+    test('delete inactive accounts', async () => {
+      const deletedAccounts = await accountRepository
+        .where({ isActive: false })
+        .delete();
+
+      expect(deletedAccounts.length).toBeGreaterThan(0);
+      deletedAccounts.forEach((account: AccountType) => {
+        expect(account.isActive).toBe(false);
+      });
+    });
+  });
+
   describe('Basic Repository Methods', () => {
     test('getMany() should return all records', async () => {
       const users = await userRepository.getMany();

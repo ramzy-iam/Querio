@@ -221,19 +221,14 @@ export class Repository<T = any, S extends RepositoryScopes<T> = any> {
   // Create a record
   async create(data: Partial<T>): Promise<T> {
     const queryBuilder = new QueryBuilder<T>(this.model.table, this.executor);
-    const results = await queryBuilder.update(data); // This will be an INSERT in a real implementation
-    return results[0];
+    return await queryBuilder.insert(data);
   }
 
   // Bulk create
   async createMany(data: Partial<T>[]): Promise<T[]> {
-    // This would need a proper bulk insert implementation
-    const results: T[] = [];
-    for (const item of data) {
-      const result = await this.create(item);
-      results.push(result);
-    }
-    return results;
+    if (data.length === 0) return [];
+    const queryBuilder = new QueryBuilder<T>(this.model.table, this.executor);
+    return await queryBuilder.insertMany(data);
   }
 }
 

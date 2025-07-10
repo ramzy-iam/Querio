@@ -11,8 +11,10 @@ The integration tests cover:
 - `getOne()` - Retrieve a single record 
 - `count()` - Count total records
 - `pluck()` - Extract specific field values
-- `update()` - Update records (implementation needed)
-- `delete()` - Delete records (implementation needed)
+- `create()` - Insert a new record
+- `createMany()` - Insert multiple records in bulk
+- `update()` - Update records matching conditions
+- `delete()` - Delete records matching conditions
 
 ### Advanced Features
 - **Pagination** - `getManyPaginated()` with page-based results
@@ -23,35 +25,42 @@ The integration tests cover:
 
 ### Test Scenarios
 
-#### 1. Basic CRUD Operations
+#### 1. CRUD Operations
+- Creating single and multiple records
+- Reading records with filtering and selection
+- Updating records with where conditions
+- Deleting records with where conditions
+- Full create → update → delete workflows
+
+#### 2. Basic Query Operations
 - Fetching all records
 - Filtering with where conditions
 - Selecting specific fields
 - Ordering, limiting, and offsetting results
 
-#### 2. Pagination
+#### 3. Pagination
 - Page-based pagination with metadata
 - Pagination with field selection
 - Edge cases (empty results, beyond total pages)
 
-#### 3. Logical Operators
+#### 4. Logical Operators
 - OR conditions
 - AND conditions  
 - Mixed AND/OR operators
 - Nested logical operators
 
-#### 4. Scoped Queries
+#### 5. Scoped Queries
 - Individual scopes (`active`, `byAge`, `byEmail`, etc.)
 - Chained scopes (`active().byAge(25)`)
 - Scoped queries with selection, ordering, and pagination
 - Scoped count and pluck operations
 
-#### 5. Error Handling
+#### 6. Error Handling
 - Invalid field names in where conditions
 - Invalid field names in select clauses
 - Database connection errors
 
-#### 6. Edge Cases
+#### 7. Edge Cases
 - Empty where conditions
 - Null value handling in comparisons
 - Limits larger than available records
@@ -111,6 +120,35 @@ Each test starts with fresh data:
 - Emergency Fund ($8,000, active, Alice's)
 
 ## Key Features Tested
+
+### CRUD Operations
+Complete create, read, update, and delete functionality:
+
+```typescript
+// Create a single record
+const newUser = await userRepository.create({
+  name: 'John Doe',
+  email: 'john@example.com',
+  age: 30,
+  isActive: true
+});
+
+// Create multiple records
+const newUsers = await userRepository.createMany([
+  { name: 'User 1', email: 'user1@example.com' },
+  { name: 'User 2', email: 'user2@example.com' }
+]);
+
+// Update records
+const updatedUsers = await userRepository
+  .where({ isActive: false })
+  .update({ isActive: true });
+
+// Delete records
+const deletedUsers = await userRepository
+  .where({ age: { gte: 65 } })
+  .delete();
+```
 
 ### Repository Scopes
 Scopes are chainable methods that add conditions to queries:

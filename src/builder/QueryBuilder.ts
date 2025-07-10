@@ -193,6 +193,20 @@ export class QueryBuilder<T> {
     return parseInt(result?.count || '0');
   }
 
+  // Insert records
+  async insert(data: Partial<T>): Promise<T> {
+    const query = this.buildInsertQuery(data);
+    const rows = await this.executor.execute<Record<string, any>>(query);
+    return mapRowsToEntities<T>(rows, this.fieldsDefinition)[0];
+  }
+
+  // Insert multiple records
+  async insertMany(data: Partial<T>[]): Promise<T[]> {
+    const query = this.buildInsertManyQuery(data);
+    const rows = await this.executor.execute<Record<string, any>>(query);
+    return mapRowsToEntities<T>(rows, this.fieldsDefinition);
+  }
+
   // Build SQL queries
   private buildSelectQuery(selectFields?: string[]): SQLQuery {
     let fields = '*';
@@ -292,6 +306,53 @@ export class QueryBuilder<T> {
       sql += ` WHERE ${whereClause.clause}`;
     }
 
+    return { sql, params };
+  }
+
+  private buildInsertQuery(data: Partial<T>): SQLQuery {
+    const mappedData = mapFieldsToColumns(data, this.fieldsDefinition);
+    const columns = Object.keys(mappedData).join(', ');
+    const values = Object.keys(mappedData).map((_, index) => `$${index + 1}`).join(', ');
+    
+    const sql = `INSERT INTO ${this.tableName} (${columns}) VALUES (${values}) RETURNING *`;
+    const params = Object.values(mappedData);
+    
+    return { sql, params };
+  }
+
+  private buildInsertManyQuery(data: Partial<T>[]): SQLQuery {
+    if (data.length === 0) {
+      throw new Error('Cannot insert empty data array');
+    }
+    
+    // Map all data to columns first
+    const mappedData = data.map(item => mapFieldsToColumns(item, this.fieldsDefinition));
+    
+    // Get all possible columns from all objects
+    const allColumns = new Set<string>();
+    mappedData.forEach(item => {
+      Object.keys(item).forEach(col => allColumns.add(col));
+    });
+    const columns = Array.from(allColumns).sort(); // Sort for consistency
+    
+    // Ensure all objects have all columns (fill missing with null)
+    const normalizedData = mappedData.map(item => {
+      const normalized: Record<string, any> = {};
+      columns.forEach(col => {
+        normalized[col] = item.hasOwnProperty(col) ? item[col] : null;
+      });
+      return normalized;
+    });
+    
+    const columnsStr = columns.join(', ');
+    
+    const valueRows = normalizedData.map((_, rowIndex) => {
+      return `(${columns.map((_, colIndex) => `$${colIndex + 1 + rowIndex * columns.length}`).join(', ')})`;
+    }).join(', ');
+    
+    const sql = `INSERT INTO ${this.tableName} (${columnsStr}) VALUES ${valueRows} RETURNING *`;
+    const params = normalizedData.flatMap(item => columns.map(col => item[col]));
+    
     return { sql, params };
   }
 
