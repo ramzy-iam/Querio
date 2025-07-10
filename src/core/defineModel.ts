@@ -1,9 +1,11 @@
-import { FieldsDefinition, QueryExecutor, WhereCondition, SelectFields } from '../types';
+import { FieldsDefinition, QueryExecutor, WhereCondition, SelectFields, RelationsDefinition } from '../types';
 import { QueryBuilder, SelectQueryBuilder } from '../builder/QueryBuilder';
+// import { RelationLoader } from './relations';
 
 export interface ModelInstance<T = any> {
   table: string;
   fields: FieldsDefinition;
+  relations?: RelationsDefinition;
   
   // Query methods with proper typing
   where: (condition: WhereCondition<T>) => QueryBuilder<T>;
@@ -13,8 +15,12 @@ export interface ModelInstance<T = any> {
   delete: () => Promise<T[]>;
   getMany: () => Promise<T[]>;
   getOne: () => Promise<T | null>;
-  pluck: <K extends keyof T>(field: K) => Promise<T[K][]>;
   count: () => Promise<number>;
+  
+  // Relation methods
+  with: (relations: string | string[]) => QueryBuilder<T>;
+  load: <R = any>(record: T, relation: string) => Promise<T & { [key: string]: R | R[] }>;
+  loadMany: <R = any>(records: T[], relation: string) => Promise<(T & { [key: string]: R | R[] })[]>;
   
   // Order and limit methods
   orderBy: (field: keyof T, direction?: 'asc' | 'desc') => QueryBuilder<T>;
@@ -37,7 +43,7 @@ export function setGlobalExecutor(executor: QueryExecutor): void {
 }
 
 export function defineModel<T = any>(
-  definition: { table: string; fields: FieldsDefinition }
+  definition: { table: string; fields: FieldsDefinition; relations?: RelationsDefinition }
 ): ModelInstance<T> {
   const createQueryBuilder = (): QueryBuilder<T> => {
     if (!globalExecutor) {
@@ -46,9 +52,12 @@ export function defineModel<T = any>(
     return new QueryBuilder<T>(definition.table, globalExecutor, definition.fields);
   };
 
+  // const relationLoader = new RelationLoader(globalExecutor!);
+
   const model: ModelInstance<T> = {
     table: definition.table,
     fields: definition.fields,
+    relations: definition.relations || {},
     
     // Query methods with explicit type annotations
     where: (condition: WhereCondition<T>) => createQueryBuilder().where(condition),
@@ -58,8 +67,34 @@ export function defineModel<T = any>(
     delete: () => createQueryBuilder().delete(),
     getMany: () => createQueryBuilder().getMany(),
     getOne: () => createQueryBuilder().getOne(),
-    pluck: (field) => createQueryBuilder().pluck(field),
     count: () => createQueryBuilder().count(),
+    
+    // Relation methods
+    with: (_relations: string | string[]) => {
+      const qb = createQueryBuilder();
+      // TODO: Implement with functionality
+      return qb;
+    },
+    
+    load: async <R = any>(record: T, relation: string): Promise<T & { [key: string]: R | R[] }> => {
+      if (!definition.relations || !definition.relations[relation]) {
+        throw new Error(`Relation '${relation}' not defined`);
+      }
+      
+      // const relationDef = definition.relations[relation];
+      // TODO: Implement load functionality using relationLoader
+      return record as T & { [key: string]: R | R[] };
+    },
+    
+    loadMany: async <R = any>(records: T[], relation: string): Promise<(T & { [key: string]: R | R[] })[]> => {
+      if (!definition.relations || !definition.relations[relation]) {
+        throw new Error(`Relation '${relation}' not defined`);
+      }
+      
+      // const relationDef = definition.relations[relation];
+      // TODO: Implement loadMany functionality using relationLoader
+      return records as (T & { [key: string]: R | R[] })[];
+    },
     
     // Order and limit methods
     orderBy: (field, direction) => createQueryBuilder().orderBy(field, direction),

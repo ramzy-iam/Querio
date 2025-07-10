@@ -86,7 +86,7 @@ const accountRepository = createRepository(Account, {
   executor: dbAdapter
 });
 
-async function createTables() {
+export async function createTables() {
   console.log('🏗️ Creating tables...');
   
   try {
@@ -127,7 +127,7 @@ async function createTables() {
   }
 }
 
-async function seedData() {
+export async function seedData() {
   console.log('🌱 Seeding data...');
   
   try {
@@ -187,55 +187,19 @@ async function demonstrateQuerioWithDB() {
     }
 
     // Create tables and seed data
-    await createTables();
-    await seedData();
+    // await createTables();
+    // await seedData();
 
     console.log('-----------------------------------------------');
 
-    // Test new convenience methods
-    console.log('🧪 Testing Repository Convenience Methods');
-    
-    // Get all users without conditions
-    const allUsers = await userRepository.getMany();
-    console.log(`All users (${allUsers.length}):`, allUsers.map(u => u.name));
-    
-    // Get one user without conditions
-    const oneUser = await userRepository.getOne();
-    console.log('First user:', oneUser?.name);
-    
-    // Get users with condition
-    const activeUsers = await userRepository.getMany({ isActive: true });
-    console.log(`Active users (${activeUsers.length}):`, activeUsers.map(u => u.name));
-    
-    // Get one user with condition
-    const activeUser = await userRepository.getOne({ isActive: true });
-    console.log('First active user:', activeUser?.name);
-    
-    // Find by specific field
-    const johnUser = await userRepository.findBy('name', 'John Doe');
-    console.log('Found John:', johnUser?.email);
-    
-    // Type-safe findBy examples
-    const userByEmail = await userRepository.findBy('email', 'jane@example.com');
-    console.log('Found by email:', userByEmail?.name);
-    
-    const userByAge = await userRepository.findBy('age', 30);
-    console.log('Found by age:', userByAge?.name);
-    
-    const userByStatus = await userRepository.findBy('isActive', true);
-    console.log('Found by status:', userByStatus?.name);
-    
-    // Find many by field
-    const activeUsersList = await userRepository.findManyBy('isActive', true);
-    console.log(`Found ${activeUsersList.length} active users by findManyBy`);
-    
-    // Count with condition
-    const activeCount = await userRepository.count({ isActive: true });
-    console.log(`Active user count: ${activeCount}`);
-    
-    // Check if exists
-    const hasInactiveUsers = await userRepository.exists({ isActive: false });
-    console.log(`Has inactive users: ${hasInactiveUsers}`);
+
+    const usersOver25 = await userRepository.scoped.byAge(50).getMany();
+    console.log('Users over 25:', usersOver25);
+
+    // Test direct scope access on repository
+    const userByEmail = await userRepository.byEmail('john@example.com').getOne();
+    console.log('User by email:', userByEmail);
+
 
   } catch (error) {
     console.error('❌ Error during demonstration:', error);

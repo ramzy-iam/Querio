@@ -1,4 +1,4 @@
-import { QueryExecutor, WhereCondition } from '../types';
+import { QueryExecutor } from '../types';
 import { QueryBuilder } from '../builder/QueryBuilder';
 import { ModelInstance } from '../core/defineModel';
 
@@ -9,14 +9,25 @@ export interface RepositoryScopes<T> {
   [scopeName: string]: ScopeFactory<T>;
 }
 
-export class Repository<T = any> {
+// Type to convert scope factories into scope methods that return ScopedQueryBuilder
+export type ScopeMethods<T, S extends RepositoryScopes<T>> = {
+  [K in keyof S]: S[K] extends (...args: infer A) => any 
+    ? (...args: A) => ScopedQueryBuilder<T> & ScopeMethods<T, S>
+    : never;
+};
+
+// Enhanced ScopedQueryBuilder with scope methods
+export type EnhancedScopedQueryBuilder<T, S extends RepositoryScopes<T>> = 
+  ScopedQueryBuilder<T> & ScopeMethods<T, S>;
+
+export class Repository<T = any, S extends RepositoryScopes<T> = any> {
   private model: ModelInstance<T>;
-  private scopes: RepositoryScopes<T>;
+  private scopes: S;
   private executor: QueryExecutor;
 
   constructor(
     model: ModelInstance<T>,
-    scopes: RepositoryScopes<T>,
+    scopes: S,
     executor: QueryExecutor
   ) {
     this.model = model;
@@ -24,71 +35,48 @@ export class Repository<T = any> {
     this.executor = executor;
   }
 
-  // Create a new scoped query builder
-  scoped(): ScopedQueryBuilder<T> {
-    const baseQueryBuilder = new QueryBuilder<T>(this.model.table, this.executor, this.model.fields);
-    return new ScopedQueryBuilder(baseQueryBuilder, this.scopes);
+  // Create a new scoped query builder with proper typing
+  get scoped(): EnhancedScopedQueryBuilder<T, S> {
+    const baseQueryBuilder = new QueryBuilder<T>(this.model.table, this.executor);
+    return new ScopedQueryBuilder(baseQueryBuilder, this.scopes) as EnhancedScopedQueryBuilder<T, S>;
   }
 
-  // Direct access to model methods
+  // Direct access to query builder methods (more reliable than model methods)
   where(condition: any): QueryBuilder<T> {
-    return this.model.where(condition);
+    return new QueryBuilder<T>(this.model.table, this.executor).where(condition);
   }
 
   select(fields: any): any {
-    return this.model.select(fields);
+    return new QueryBuilder<T>(this.model.table, this.executor).select(fields);
   }
 
-  // Convenient methods with optional conditions
-  async getMany(): Promise<T[]>;
-  async getMany(condition: WhereCondition<T>): Promise<T[]>;
-  async getMany(condition?: WhereCondition<T>): Promise<T[]> {
-    if (condition) {
-      return this.model.where(condition).getMany();
-    }
-    return this.model.getMany();
+  async getMany(): Promise<T[]> {
+    return new QueryBuilder<T>(this.model.table, this.executor).getMany();
   }
 
-  async getOne(): Promise<T | null>;
-  async getOne(condition: WhereCondition<T>): Promise<T | null>;
-  async getOne(condition?: WhereCondition<T>): Promise<T | null> {
-    if (condition) {
-      return this.model.where(condition).getOne();
-    }
-    return this.model.getOne();
+  async getOne(): Promise<T | null> {
+    return new QueryBuilder<T>(this.model.table, this.executor).getOne();
   }
 
-  async count(): Promise<number>;
-  async count(condition: WhereCondition<T>): Promise<number>;
-  async count(condition?: WhereCondition<T>): Promise<number> {
-    if (condition) {
-      return this.model.where(condition).count();
-    }
-    return this.model.count();
+  async pluck<K extends keyof T>(field: K): Promise<T[K][]> {
+    return new QueryBuilder<T>(this.model.table, this.executor).pluck(field);
   }
 
-  // Update and delete with optional conditions
-  async update(data: Partial<T>): Promise<T[]>;
-  async update(data: Partial<T>, condition: WhereCondition<T>): Promise<T[]>;
-  async update(data: Partial<T>, condition?: WhereCondition<T>): Promise<T[]> {
-    if (condition) {
-      return this.model.where(condition).update(data);
-    }
-    return this.model.update(data);
+  async count(): Promise<number> {
+    return new QueryBuilder<T>(this.model.table, this.executor).count();
   }
 
-  async delete(): Promise<T[]>;
-  async delete(condition: WhereCondition<T>): Promise<T[]>;
-  async delete(condition?: WhereCondition<T>): Promise<T[]> {
-    if (condition) {
-      return this.model.where(condition).delete();
-    }
-    return this.model.delete();
+  async update(data: Partial<T>): Promise<T[]> {
+    return new QueryBuilder<T>(this.model.table, this.executor).update(data);
+  }
+
+  async delete(): Promise<T[]> {
+    return new QueryBuilder<T>(this.model.table, this.executor).delete();
   }
 
   // Create a record
   async create(data: Partial<T>): Promise<T> {
-    const queryBuilder = new QueryBuilder<T>(this.model.table, this.executor, this.model.fields);
+    const queryBuilder = new QueryBuilder<T>(this.model.table, this.executor);
     const results = await queryBuilder.update(data); // This will be an INSERT in a real implementation
     return results[0];
   }
@@ -103,35 +91,29 @@ export class Repository<T = any> {
     }
     return results;
   }
-
-  // Additional convenient methods with proper typing
-  async findById(id: string | number): Promise<T | null> {
-    return this.getOne({ id } as WhereCondition<T>);
-  }
-
-  async findBy<K extends keyof T>(field: K, value: T[K]): Promise<T | null> {
-    const condition = { [field]: value } as unknown as WhereCondition<T>;
-    return this.getOne(condition);
-  }
-
-  async findManyBy<K extends keyof T>(field: K, value: T[K]): Promise<T[]> {
-    const condition = { [field]: value } as unknown as WhereCondition<T>;
-    return this.getMany(condition);
-  }
-
-  async exists(condition: WhereCondition<T>): Promise<boolean> {
-    const count = await this.count(condition);
-    return count > 0;
-  }
 }
 
 // Scoped query builder that can chain scope methods
 export class ScopedQueryBuilder<T> {
   private queryBuilder: QueryBuilder<T>;
+  private scopes: RepositoryScopes<T>;
 
-  constructor(queryBuilder: QueryBuilder<T>, _scopes: RepositoryScopes<T>) {
+  constructor(queryBuilder: QueryBuilder<T>, scopes: RepositoryScopes<T>) {
     this.queryBuilder = queryBuilder;
-    // Note: scopes will be used when dynamic scope methods are implemented
+    this.scopes = scopes;
+    
+    // Dynamically add scope methods
+    this.addScopeMethods();
+  }
+
+  private addScopeMethods(): void {
+    Object.keys(this.scopes).forEach(scopeName => {
+      (this as any)[scopeName] = (...args: any[]) => {
+        const scopeFunction = this.scopes[scopeName](...args);
+        this.queryBuilder = scopeFunction(this.queryBuilder);
+        return this;
+      };
+    });
   }
 
   // Standard query builder methods
@@ -189,18 +171,23 @@ export class ScopedQueryBuilder<T> {
   }
 }
 
-// Create a repository with scopes
-export function createRepository<T = any>(
+// Create a repository with scopes and proper typing
+export function createRepository<T, S extends RepositoryScopes<T>>(
   model: ModelInstance<T>,
   config: {
-    scopes: RepositoryScopes<T>;
+    scopes: S;
     executor: QueryExecutor;
   }
-): Repository<T> {
+): Repository<T, S> & ScopeMethods<T, S> {
   const repository = new Repository(model, config.scopes, config.executor);
   
-  // TODO: Implement dynamic scope methods
-  // This will be implemented when the scope system is fully developed
+  // Add dynamic scope methods to the repository
+  Object.keys(config.scopes).forEach(scopeName => {
+    (repository as any)[scopeName] = (...args: any[]) => {
+      const scoped = repository.scoped;
+      return (scoped as any)[scopeName](...args);
+    };
+  });
   
-  return repository;
+  return repository as Repository<T, S> & ScopeMethods<T, S>;
 }

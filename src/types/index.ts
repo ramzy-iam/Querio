@@ -133,3 +133,19 @@ export interface QueryExecutor {
   execute<T>(query: SQLQuery): Promise<T[]>;
   executeOne<T>(query: SQLQuery): Promise<T | null>;
 }
+
+// Relation types
+export type RelationType = 'hasOne' | 'hasMany' | 'belongsTo' | 'belongsToMany';
+
+export interface RelationDefinition {
+  type: RelationType;
+  target: string; // Target model/table name
+  foreignKey?: string; // Foreign key field
+  localKey?: string; // Local key field (default: 'id')
+  pivotTable?: string; // For many-to-many relations
+  pivotForeignKey?: string; // Foreign key in pivot table pointing to this model
+  pivotRelatedKey?: string; // Foreign key in pivot table pointing to related model
+  through?: string; // For has-many-through relations
+}
+
+export type RelationsDefinition = Record<string, RelationDefinition>;
