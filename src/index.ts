@@ -30,7 +30,10 @@ export {
   decimal, 
   json, 
   enumField,
-  nullable 
+  nullable,
+  uniqueConstraint,
+  customConstraint,
+  createConstraints
 } from './core/fields';
 
 // Logging functions

@@ -1,4 +1,4 @@
-import { FieldDefinition } from '../types';
+import { FieldDefinition, UniqueConstraint, CustomConstraint, TableConstraints } from '../types';
 
 export function text(options: Partial<Pick<FieldDefinition, 'nullable' | 'default' | 'unique'>> = {}): FieldDefinition {
   return {
@@ -82,3 +82,29 @@ export const nullable = {
     options: Partial<Pick<FieldDefinition, 'default' | 'unique' | 'enumName'>> = {}
   ) => enumField(enumValues, { ...options, nullable: true })
 };
+
+// Constraint helper functions
+export function uniqueConstraint(fields: string[], name?: string): UniqueConstraint {
+  return {
+    fields,
+    ...(name && { name })
+  };
+}
+
+export function customConstraint(name: string, definition: string): CustomConstraint {
+  return {
+    name,
+    definition
+  };
+}
+
+// Helper to create table constraints
+export function createConstraints(options: {
+  unique?: UniqueConstraint[];
+  custom?: CustomConstraint[];
+}): TableConstraints {
+  return {
+    ...(options.unique && { unique: options.unique }),
+    ...(options.custom && { custom: options.custom })
+  };
+}

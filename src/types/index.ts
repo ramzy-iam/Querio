@@ -64,6 +64,22 @@ export interface FieldDefinition {
   enumName?: string; // Custom enum type name in database
 }
 
+// Constraint definitions for table-level constraints
+export interface UniqueConstraint {
+  name?: string; // Optional constraint name
+  fields: string[]; // Array of field names that together must be unique
+}
+
+export interface CustomConstraint {
+  name: string; // Constraint name
+  definition: string; // SQL constraint definition (e.g., "CHECK (age >= 0)")
+}
+
+export interface TableConstraints {
+  unique?: UniqueConstraint[]; // Combined unique constraints
+  custom?: CustomConstraint[]; // Custom SQL constraints
+}
+
 export type FieldsDefinition = Record<string, FieldDefinition>;
 
 // Utility function to convert camelCase to snake_case
@@ -194,6 +210,7 @@ export interface SQLQuery {
 export interface ModelDefinition<T extends FieldsDefinition> {
   table: string;
   fields: T;
+  constraints?: TableConstraints; // Table-level constraints
 }
 
 // Query execution types

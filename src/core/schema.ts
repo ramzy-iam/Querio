@@ -1,4 +1,4 @@
-import { FieldDefinition, FieldsDefinition, getColumnName } from '../types';
+import { FieldDefinition, FieldsDefinition, getColumnName, TableConstraints } from '../types';
 
 export interface CreateTableOptions {
   dropIfExists?: boolean;
@@ -8,7 +8,8 @@ export interface CreateTableOptions {
 export function generateCreateTableSQL(
   tableName: string,
   fieldsDefinition: FieldsDefinition,
-  options: CreateTableOptions = {}
+  options: CreateTableOptions = {},
+  constraints?: TableConstraints
 ): string {
   const { dropIfExists = false, schema } = options;
   const fullTableName = schema ? `${schema}.${tableName}` : tableName;
@@ -38,8 +39,7 @@ export function generateCreateTableSQL(
   const columnDefinitions: string[] = [];
   const uniqueConstraints: string[] = [];
   let primaryKeyColumns: string[] = [];
-  
-  // Generate column definitions
+    // Generate column definitions
   for (const [fieldName, fieldDef] of Object.entries(fieldsDefinition)) {
     const columnName = getColumnName(fieldName, fieldDef);
     const columnDef = generateColumnDefinition(columnName, fieldDef, enumMap, fieldName);
@@ -50,19 +50,45 @@ export function generateCreateTableSQL(
       primaryKeyColumns.push(columnName);
     }
     
-    // Collect unique constraints
+    // Collect unique constraints (individual field constraints)
     if (fieldDef.unique && !fieldDef.primaryKey) {
       uniqueConstraints.push(`  UNIQUE (${columnName})`);
     }
   }
-  
+
   // Add primary key constraint
   if (primaryKeyColumns.length > 0) {
     columnDefinitions.push(`  PRIMARY KEY (${primaryKeyColumns.join(', ')})`);
   }
-  
-  // Add unique constraints
+
+  // Add unique constraints (individual fields)
   columnDefinitions.push(...uniqueConstraints);
+  
+  // Add combined unique constraints
+  if (constraints?.unique) {
+    for (const uniqueConstraint of constraints.unique) {
+      const columnNames = uniqueConstraint.fields.map(field => {
+        const fieldDef = fieldsDefinition[field];
+        if (!fieldDef) {
+          throw new Error(`Field '${field}' referenced in unique constraint does not exist in table '${tableName}'`);
+        }
+        return getColumnName(field, fieldDef);
+      });
+      
+      const constraintName = uniqueConstraint.name 
+        ? `CONSTRAINT ${uniqueConstraint.name} ` 
+        : '';
+      
+      columnDefinitions.push(`  ${constraintName}UNIQUE (${columnNames.join(', ')})`);
+    }
+  }
+  
+  // Add custom constraints
+  if (constraints?.custom) {
+    for (const customConstraint of constraints.custom) {
+      columnDefinitions.push(`  CONSTRAINT ${customConstraint.name} ${customConstraint.definition}`);
+    }
+  }
   
   sql += columnDefinitions.join(',\n');
   sql += '\n);';
