@@ -1,6 +1,7 @@
 // Core exports
 export * from './core/fields';
 export * from './core/defineModel';
+export * from './core/schema';
 export * from './types';
 
 // Builder exports
@@ -28,6 +29,7 @@ export {
   timestamp, 
   decimal, 
   json, 
+  enumField,
   nullable 
 } from './core/fields';
 

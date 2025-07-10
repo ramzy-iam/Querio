@@ -1,5 +1,5 @@
 // Core types for Querio ORM
-export type FieldType = 'text' | 'uuid' | 'integer' | 'boolean' | 'timestamp' | 'decimal' | 'json';
+export type FieldType = 'text' | 'uuid' | 'integer' | 'boolean' | 'timestamp' | 'decimal' | 'json' | 'enum';
 
 // Logging types
 export interface QueryLogEntry {
@@ -60,6 +60,8 @@ export interface FieldDefinition {
   primaryKey?: boolean;
   unique?: boolean;
   column?: string; // Optional: maps entity field to database column name
+  enumValues?: string[]; // For enum fields
+  enumName?: string; // Custom enum type name in database
 }
 
 export type FieldsDefinition = Record<string, FieldDefinition>;
@@ -199,22 +201,6 @@ export interface QueryExecutor {
   execute<T>(query: SQLQuery): Promise<T[]>;
   executeOne<T>(query: SQLQuery): Promise<T | null>;
 }
-
-// Relation types
-export type RelationType = 'hasOne' | 'hasMany' | 'belongsTo' | 'belongsToMany';
-
-export interface RelationDefinition {
-  type: RelationType;
-  target: string; // Target model/table name
-  foreignKey?: string; // Foreign key field
-  localKey?: string; // Local key field (default: 'id')
-  pivotTable?: string; // For many-to-many relations
-  pivotForeignKey?: string; // Foreign key in pivot table pointing to this model
-  pivotRelatedKey?: string; // Foreign key in pivot table pointing to related model
-  through?: string; // For has-many-through relations
-}
-
-export type RelationsDefinition = Record<string, RelationDefinition>;
 
 // Repository type utilities for creating strongly typed specific repositories
 export type RepositoryType<T, S extends Record<string, any> = {}> = import('../repository/Repository').Repository<T, S> & import('../repository/Repository').ScopeMethods<T, S>;

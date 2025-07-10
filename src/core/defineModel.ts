@@ -1,11 +1,10 @@
-import { FieldsDefinition, QueryExecutor, WhereCondition, SelectFields, RelationsDefinition } from '../types';
+import { FieldsDefinition, QueryExecutor, WhereCondition, SelectFields } from '../types';
 import { QueryBuilder, SelectQueryBuilder } from '../builder/QueryBuilder';
 // import { RelationLoader } from './relations';
 
 export interface ModelInstance<T = any> {
   table: string;
   fields: FieldsDefinition;
-  relations?: RelationsDefinition;
   
   // Query methods with proper typing
   where: (condition: WhereCondition<T>) => QueryBuilder<T>;
@@ -38,7 +37,7 @@ export function setGlobalExecutor(executor: QueryExecutor): void {
 }
 
 export function defineModel<T = any>(
-  definition: { table: string; fields: FieldsDefinition; relations?: RelationsDefinition }
+  definition: { table: string; fields: FieldsDefinition; }
 ): ModelInstance<T> {
   const createQueryBuilder = (): QueryBuilder<T> => {
     if (!globalExecutor) {
@@ -52,7 +51,6 @@ export function defineModel<T = any>(
   const model: ModelInstance<T> = {
     table: definition.table,
     fields: definition.fields,
-    relations: definition.relations || {},
     
     // Query methods with explicit type annotations
     where: (condition: WhereCondition<T>) => createQueryBuilder().where(condition),
