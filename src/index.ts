@@ -1,56 +1,53 @@
 // Core exports
-export * from './core/fields';
-export * from './core/defineModel';
-export * from './core/schema';
-export * from './types';
+export * from "./core/fields";
+export * from "./core/model";
+export * from "./core/relations";
+export * from "./core/modelRegistry";
+export * from "./core/schema";
+export * from "./core/migration";
+export * from "./types";
 
 // Builder exports
-export * from './builder/QueryBuilder';
+export * from "./builder/QueryBuilder";
 
 // Repository exports
-export * from './repository/Repository';
-export type { PaginationInput, PaginationResult } from './repository/Repository';
+export * from "./repository/Repository";
 
 // Adapter exports
-export * from './adapters/postgres';
-export type { LogLevel, LoggingConfig } from './adapters/postgres';
+export * from "./adapters/postgres";
+export type { LogLevel, LoggingConfig } from "./adapters/postgres";
 
 // Re-export commonly used functions
-export { 
-  defineModel, 
-  setGlobalExecutor
-} from './core/defineModel';
+export { defineModel, setGlobalExecutor } from "./core/model";
 
-export { 
-  text, 
-  uuid, 
-  integer, 
-  boolean, 
-  timestamp, 
-  decimal, 
-  json, 
+export { hasOne, hasMany, belongsTo, belongsToMany } from "./core/relations";
+
+export {
+  text,
+  uuid,
+  integer,
+  boolean,
+  timestamp,
+  decimal,
+  json,
   enumField,
   nullable,
   uniqueConstraint,
   customConstraint,
-  createConstraints
-} from './core/fields';
+  createConstraints,
+} from "./core/fields";
 
 // Logging functions
 export {
   enableQueryLogging,
   disableQueryLogging,
   isQueryLoggingEnabled,
-  ConsoleQueryLogger
-} from './types';
+  ConsoleQueryLogger,
+} from "./types";
 
-export { 
-  createRepository 
-} from './repository/Repository';
+export { createRepository } from "./repository/Repository";
 
-export { 
-  PostgreSQLAdapter 
-} from './adapters/postgres';
+export { PostgreSQLAdapter } from "./adapters/postgres";
 
 // Version
-export const version = '1.0.0';
+export const version = "1.0.0";
