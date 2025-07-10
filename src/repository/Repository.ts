@@ -1,4 +1,4 @@
-import { QueryExecutor } from '../types';
+import { QueryExecutor, WhereCondition } from '../types';
 import { QueryBuilder } from '../builder/QueryBuilder';
 import { ModelInstance } from '../core/defineModel';
 
@@ -39,27 +39,50 @@ export class Repository<T = any> {
     return this.model.select(fields);
   }
 
-  async getMany(): Promise<T[]> {
+  // Convenient methods with optional conditions
+  async getMany(): Promise<T[]>;
+  async getMany(condition: WhereCondition<T>): Promise<T[]>;
+  async getMany(condition?: WhereCondition<T>): Promise<T[]> {
+    if (condition) {
+      return this.model.where(condition).getMany();
+    }
     return this.model.getMany();
   }
 
-  async getOne(): Promise<T | null> {
+  async getOne(): Promise<T | null>;
+  async getOne(condition: WhereCondition<T>): Promise<T | null>;
+  async getOne(condition?: WhereCondition<T>): Promise<T | null> {
+    if (condition) {
+      return this.model.where(condition).getOne();
+    }
     return this.model.getOne();
   }
 
-  async pluck<K extends keyof T>(field: K): Promise<T[K][]> {
-    return this.model.pluck(field);
-  }
-
-  async count(): Promise<number> {
+  async count(): Promise<number>;
+  async count(condition: WhereCondition<T>): Promise<number>;
+  async count(condition?: WhereCondition<T>): Promise<number> {
+    if (condition) {
+      return this.model.where(condition).count();
+    }
     return this.model.count();
   }
 
-  async update(data: Partial<T>): Promise<T[]> {
+  // Update and delete with optional conditions
+  async update(data: Partial<T>): Promise<T[]>;
+  async update(data: Partial<T>, condition: WhereCondition<T>): Promise<T[]>;
+  async update(data: Partial<T>, condition?: WhereCondition<T>): Promise<T[]> {
+    if (condition) {
+      return this.model.where(condition).update(data);
+    }
     return this.model.update(data);
   }
 
-  async delete(): Promise<T[]> {
+  async delete(): Promise<T[]>;
+  async delete(condition: WhereCondition<T>): Promise<T[]>;
+  async delete(condition?: WhereCondition<T>): Promise<T[]> {
+    if (condition) {
+      return this.model.where(condition).delete();
+    }
     return this.model.delete();
   }
 
@@ -79,6 +102,24 @@ export class Repository<T = any> {
       results.push(result);
     }
     return results;
+  }
+
+  // Additional convenient methods
+  async findById(id: string | number): Promise<T | null> {
+    return this.getOne({ id } as WhereCondition<T>);
+  }
+
+  async findBy(field: keyof T, value: any): Promise<T | null> {
+    return this.getOne({ [field]: value } as WhereCondition<T>);
+  }
+
+  async findManyBy(field: keyof T, value: any): Promise<T[]> {
+    return this.getMany({ [field]: value } as WhereCondition<T>);
+  }
+
+  async exists(condition: WhereCondition<T>): Promise<boolean> {
+    const count = await this.count(condition);
+    return count > 0;
   }
 }
 

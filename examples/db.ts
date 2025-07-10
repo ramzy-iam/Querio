@@ -190,84 +190,38 @@ async function demonstrateQuerioWithDB() {
     await createTables();
     await seedData();
 
-    // Example 1: Basic queries with type inference
-    console.log('\n📝 Example 1: Basic Queries with Type Inference');
     console.log('-----------------------------------------------');
 
-    // Get all users - type: UserType[]
-    const allUsers = await User.getMany();
-    console.log(`Total users: ${allUsers.length}`);
-
-    // Select specific fields - type: { id: string; name: string; email: string }[]
-    const userDetails = await User.select({
-      id: true,
-      name: true,
-      email: true
-    }).getMany();
-    console.log(`User details (${userDetails.length} records):`, userDetails);
-
-    // Example 2: Where conditions with proper typing
-    console.log('\n📝 Example 2: Where Conditions');
-    console.log('------------------------------');
-
-    // Boolean condition - now works with proper typing!
-    const activeUsers = await User.where({ isActive: true }).getMany();
-    console.log(`Active users: ${activeUsers.length}`);
-
-    // String condition
-    const johnUser = await User.where({ email: 'john@example.com' }).getOne();
-    console.log(`Found John: ${johnUser ? johnUser.name : 'Not found'}`);
-
-    // Numeric condition with operator
-    const adults = await User.where({ age: { gte: 18 } }).getMany();
-    console.log(`Adult users (age >= 18): ${adults.length}`);
-
-    // Example 3: Chained conditions
-    console.log('\n📝 Example 3: Chained Conditions');
-    console.log('--------------------------------');
-
-    const activeAdults = await User
-      .where({ isActive: true })
-      .andWhere({ age: { gte: 18 } })
-      .getMany();
-    console.log(`Active adults: ${activeAdults.length}`);
-
-    // Example 4: Ordering and limiting
-    console.log('\n📝 Example 4: Ordering and Limiting');
-    console.log('-----------------------------------');
-
-    const sortedUsers = await User
-      .orderBy('name', 'asc')
-      .limit(3)
-      .select({ name: true, email: true, isActive: true })
-      .getMany();
-    console.log(`Sorted users (top 3):`, sortedUsers);
-
-    // Example 5: Account queries
-    console.log('\n📝 Example 5: Account Queries');
-    console.log('-----------------------------');
-
-    const allAccounts = await Account.getMany();
-    console.log(`Total accounts: ${allAccounts.length}`);
-
-    const highBalanceAccounts = await Account
-      .where({ balance: { gte: 1000 } })
-      .orderBy('balance', 'desc')
-      .getMany();
-    console.log(`High balance accounts: ${highBalanceAccounts.length}`);
-
-    // Example 6: Count queries
-    console.log('\n📝 Example 6: Count Queries');
-    console.log('---------------------------');
-
-    const userCount = await User.count();
-    const activeUserCount = await User.where({ isActive: true }).count();
-    console.log(`Total users: ${userCount}, Active: ${activeUserCount}`);
-
-    console.log('\n🎉 All tests completed successfully!');
-    console.log('✅ Type inference is working perfectly!');
-    console.log('✅ Where conditions are properly typed!');
-    console.log('✅ Select queries return correct types!');
+    // Test new convenience methods
+    console.log('🧪 Testing Repository Convenience Methods');
+    
+    // Get all users without conditions
+    const allUsers = await userRepository.getMany();
+    console.log(`All users (${allUsers.length}):`, allUsers.map(u => u.name));
+    
+    // Get one user without conditions
+    const oneUser = await userRepository.getOne();
+    console.log('First user:', oneUser?.name);
+    
+    // Get users with condition
+    const activeUsers = await userRepository.getMany({ isActive: true });
+    console.log(`Active users (${activeUsers.length}):`, activeUsers.map(u => u.name));
+    
+    // Get one user with condition
+    const activeUser = await userRepository.getOne({ isActive: true });
+    console.log('First active user:', activeUser?.name);
+    
+    // Find by specific field
+    const johnUser = await userRepository.findBy('name', 'John Doe');
+    console.log('Found John:', johnUser?.email);
+    
+    // Count with condition
+    const activeCount = await userRepository.count({ isActive: true });
+    console.log(`Active user count: ${activeCount}`);
+    
+    // Check if exists
+    const hasInactiveUsers = await userRepository.exists({ isActive: false });
+    console.log(`Has inactive users: ${hasInactiveUsers}`);
 
   } catch (error) {
     console.error('❌ Error during demonstration:', error);
