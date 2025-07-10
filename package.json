@@ -18,7 +18,6 @@
     "lint": "tsc --noEmit",
     "prepare": "pnpm build"
   },
-  "packageManager": "pnpm@8.0.0",
   "keywords": [
     "orm",
     "typescript",
