@@ -1,5 +1,5 @@
 import { QueryExecutor, SelectFields, SelectedType, WhereCondition } from '../types';
-import { QueryBuilder } from '../builder/QueryBuilder';
+import { QueryBuilder, SelectQueryBuilder } from '../builder/QueryBuilder';
 import { ModelInstance } from '../core/defineModel';
 
 export type ScopeFunction<T> = (qb: QueryBuilder<T>) => QueryBuilder<T>;
@@ -64,7 +64,7 @@ export class Repository<T = any, S extends RepositoryScopes<T> = any> {
     return new QueryBuilder<T>(this.model.table, this.executor).where(condition);
   }
 
-  select(fields: any): any {
+  select<S extends SelectFields<T>>(fields: S): SelectQueryBuilder<T, S> {
     return new QueryBuilder<T>(this.model.table, this.executor).select(fields);
   }
 
@@ -286,8 +286,9 @@ export class ScopedQueryBuilder<T> {
     return this;
   }
 
-  select(fields: any): any {
-    return this.queryBuilder.select(fields);
+  select<S extends SelectFields<T>>(fields: S): ScopedSelectQueryBuilder<T, S> {
+    const selectQb = this.queryBuilder.select(fields);
+    return new ScopedSelectQueryBuilder(selectQb);
   }
 
   async getMany(): Promise<T[]> {
@@ -343,6 +344,23 @@ export class ScopedQueryBuilder<T> {
         hasPreviousPage: pagination.page > 1,
       },
     };
+  }
+}
+
+// Scoped select query builder that maintains scope functionality with typed selects
+export class ScopedSelectQueryBuilder<T, S extends SelectFields<T>> {
+  private selectQueryBuilder: SelectQueryBuilder<T, S>;
+
+  constructor(selectQueryBuilder: SelectQueryBuilder<T, S>) {
+    this.selectQueryBuilder = selectQueryBuilder;
+  }
+
+  async getMany(): Promise<SelectedType<T, S>[]> {
+    return this.selectQueryBuilder.getMany();
+  }
+
+  async getOne(): Promise<SelectedType<T, S> | null> {
+    return this.selectQueryBuilder.getOne();
   }
 }
 

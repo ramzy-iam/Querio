@@ -208,6 +208,20 @@ async function demonstrateQuerioWithDB() {
       offset: 1
     });
     console.log('Users with select and typed where:', usersWithSelect);
+    
+    // Test account repository with scoped query and select
+    const accounts = await accountRepository.scoped
+      .orderBy('balance', 'asc')
+      .orderBy('id', 'desc')
+      .limit(4)
+      .offset(1)
+      .select({
+        id: true,
+        name: true,
+        balance: true,
+      })
+      .getMany();
+    console.log('Accounts with select:', accounts);
 
       // Test enhanced getOne with options
       const oneUserWithSelect = await userRepository.getOne({
@@ -221,7 +235,7 @@ async function demonstrateQuerioWithDB() {
 
     // Test pagination with getManyPaginated
     const paginatedUsers = await userRepository.getManyPaginated({
-      where: { isActive: true },
+      where: { isActive: true, },
       orderBy: { field: 'name', direction: 'asc' },
       pagination: { page: 1, pageSize: 2 }
     });
