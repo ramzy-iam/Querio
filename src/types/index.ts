@@ -37,6 +37,8 @@ export interface FindOptions<T> {
   where?: WhereCondition<T>;
   select?: SelectFields<T>;
   orderBy?: { field: keyof T; direction?: "asc" | "desc" };
+  groupBy?: (keyof T)[];
+  having?: WhereCondition<T>;
   limit?: number;
   offset?: number;
   relations?: RelationLoadOptions;
@@ -47,6 +49,8 @@ export interface FindOneOptions<T> {
   where?: WhereCondition<T>;
   select?: SelectFields<T>;
   orderBy?: { field: keyof T; direction?: "asc" | "desc" };
+  groupBy?: (keyof T)[];
+  having?: WhereCondition<T>;
   relations?: RelationLoadOptions;
 }
 
@@ -55,6 +59,8 @@ export interface FindPaginatedOptions<T> {
   where?: WhereCondition<T>;
   select?: SelectFields<T>;
   orderBy?: { field: keyof T; direction?: "asc" | "desc" };
+  groupBy?: (keyof T)[];
+  having?: WhereCondition<T>;
   pagination: PaginationInput;
   relations?: RelationLoadOptions;
 }

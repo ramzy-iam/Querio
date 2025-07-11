@@ -17,6 +17,8 @@ export class QueryBuilder<T> {
   private whereConditions: WhereCondition<T>[] = [];
   private orderByConditions: OrderBy<T>[] = [];
   private joinConditions: JoinCondition[] = [];
+  private groupByFields: (keyof T)[] = [];
+  private havingConditions: WhereCondition<T>[] = [];
   private limitValue?: number;
   private offsetValue?: number;
 
@@ -38,6 +40,10 @@ export class QueryBuilder<T> {
       typeof order === 'string' ? order : JSON.parse(JSON.stringify(order))
     )];
     cloned.joinConditions = [...this.joinConditions.map(join => ({ ...join }))];
+    cloned.groupByFields = [...this.groupByFields];
+    cloned.havingConditions = [...this.havingConditions.map(condition => 
+      JSON.parse(JSON.stringify(condition))
+    )];
     
     if (this.limitValue !== undefined) {
       cloned.limitValue = this.limitValue;
@@ -93,9 +99,18 @@ export class QueryBuilder<T> {
   }
 
   orWhere(condition: WhereCondition<T>): this {
-    // orWhere ajoute une condition OR - pour l'instant traité comme AND
-    // TODO: Implémenter la logique OR proprement
-    this.whereConditions.push(condition);
+    // If no existing conditions, treat as regular where
+    if (this.whereConditions.length === 0) {
+      this.whereConditions.push(condition);
+      return this;
+    }
+
+    // Get the last condition and wrap it with the new condition in an OR
+    const lastCondition = this.whereConditions.pop()!;
+    const orCondition: WhereCondition<T> = {
+      OR: [lastCondition, condition]
+    };
+    this.whereConditions.push(orCondition);
     return this;
   }
 
@@ -108,6 +123,28 @@ export class QueryBuilder<T> {
   // Order by methods
   orderBy(field: keyof T, direction: 'asc' | 'desc' = 'asc'): this {
     this.orderByConditions.push({ [field]: direction } as OrderBy<T>);
+    return this;
+  }
+
+  // Group by methods
+  groupBy(...fields: (keyof T)[]): this {
+    this.groupByFields.push(...fields);
+    return this;
+  }
+
+  addGroupBy(...fields: (keyof T)[]): this {
+    this.groupByFields.push(...fields);
+    return this;
+  }
+
+  // Having methods (used with GROUP BY)
+  having(condition: WhereCondition<T>): this {
+    this.havingConditions = [condition];
+    return this;
+  }
+
+  andHaving(condition: WhereCondition<T>): this {
+    this.havingConditions.push(condition);
     return this;
   }
 
@@ -231,6 +268,19 @@ export class QueryBuilder<T> {
       paramIndex = whereClause.nextParamIndex;
     }
 
+    // Add GROUP BY
+    if (this.groupByFields.length > 0) {
+      const groupByColumns = this.groupByFields.map(field => this.getColumnName(field as string));
+      sql += ` GROUP BY ${groupByColumns.join(', ')}`;
+    }
+
+    // Add HAVING conditions (only valid with GROUP BY)
+    if (this.havingConditions.length > 0) {
+      const havingClause = this.buildWhereClause(this.havingConditions, params, paramIndex);
+      sql += ` HAVING ${havingClause.clause}`;
+      paramIndex = havingClause.nextParamIndex;
+    }
+
     // Add ORDER BY
     if (this.orderByConditions.length > 0) {
       const orderParts = this.orderByConditions.map(order => {
@@ -304,6 +354,29 @@ export class QueryBuilder<T> {
     if (this.whereConditions.length > 0) {
       const whereClause = this.buildWhereClause(this.whereConditions, params, paramIndex);
       sql += ` WHERE ${whereClause.clause}`;
+      paramIndex = whereClause.nextParamIndex;
+    }
+
+    // If GROUP BY is used, we need to count the number of groups
+    if (this.groupByFields.length > 0) {
+      const groupByColumns = this.groupByFields.map(field => this.getColumnName(field as string));
+      sql = `SELECT COUNT(*) as count FROM (SELECT 1 FROM ${this.tableName}`;
+      
+      // Add WHERE conditions for subquery
+      if (this.whereConditions.length > 0) {
+        const whereClause = this.buildWhereClause(this.whereConditions, params, 1);
+        sql += ` WHERE ${whereClause.clause}`;
+      }
+      
+      sql += ` GROUP BY ${groupByColumns.join(', ')}`;
+      
+      // Add HAVING conditions for subquery
+      if (this.havingConditions.length > 0) {
+        const havingClause = this.buildWhereClause(this.havingConditions, params, paramIndex);
+        sql += ` HAVING ${havingClause.clause}`;
+      }
+      
+      sql += `) as grouped_count`;
     }
 
     return { sql, params };
@@ -477,6 +550,70 @@ export class SelectQueryBuilder<T, S extends SelectFields<T>> {
     private selectFields: S
   ) {}
 
+  // Add query building methods that work with selected fields
+  where(condition: WhereCondition<T>): this {
+    (this.baseQuery as any).whereConditions = [condition];
+    return this;
+  }
+
+  andWhere(condition: WhereCondition<T>): this {
+    (this.baseQuery as any).whereConditions.push(condition);
+    return this;
+  }
+
+  orWhere(condition: WhereCondition<T>): this {
+    const baseQuery = this.baseQuery as any;
+    
+    // If no existing conditions, treat as regular where
+    if (baseQuery.whereConditions.length === 0) {
+      baseQuery.whereConditions.push(condition);
+      return this;
+    }
+
+    // Get the last condition and wrap it with the new condition in an OR
+    const lastCondition = baseQuery.whereConditions.pop()!;
+    const orCondition: WhereCondition<T> = {
+      OR: [lastCondition, condition]
+    };
+    baseQuery.whereConditions.push(orCondition);
+    return this;
+  }
+
+  orderBy(field: keyof T, direction: 'asc' | 'desc' = 'asc'): this {
+    (this.baseQuery as any).orderByConditions.push({ [field]: direction });
+    return this;
+  }
+
+  groupBy(...fields: (keyof T)[]): this {
+    (this.baseQuery as any).groupByFields.push(...fields);
+    return this;
+  }
+
+  addGroupBy(...fields: (keyof T)[]): this {
+    (this.baseQuery as any).groupByFields.push(...fields);
+    return this;
+  }
+
+  having(condition: WhereCondition<T>): this {
+    (this.baseQuery as any).havingConditions = [condition];
+    return this;
+  }
+
+  andHaving(condition: WhereCondition<T>): this {
+    (this.baseQuery as any).havingConditions.push(condition);
+    return this;
+  }
+
+  limit(count: number): this {
+    (this.baseQuery as any).limitValue = count;
+    return this;
+  }
+
+  offset(count: number): this {
+    (this.baseQuery as any).offsetValue = count;
+    return this;
+  }
+
   async getMany(): Promise<SelectedType<T, S>[]> {
     const fieldNames = Object.keys(this.selectFields).filter(key => this.selectFields[key as keyof S]);
     const columnNames = fieldNames.map(field => (this.baseQuery as any).getColumnName(field));
@@ -496,5 +633,12 @@ export class SelectQueryBuilder<T, S extends SelectFields<T>> {
     if (!row) return null;
     const fieldsDefinition = (this.baseQuery as any).fieldsDefinition;
     return mapColumnsToFields<SelectedType<T, S>>(row, fieldsDefinition);
+  }
+
+  async count(): Promise<number> {
+    const query = (this.baseQuery as any).buildCountQuery();
+    const executor = (this.baseQuery as any).executor as QueryExecutor;
+    const result = await executor.executeOne<{ count: string }>(query);
+    return parseInt(result?.count || '0');
   }
 }

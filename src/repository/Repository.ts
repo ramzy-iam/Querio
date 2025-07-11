@@ -65,6 +65,20 @@ export class Repository<T = any, S extends RepositoryScopes<T> = any> {
     );
   }
 
+  orWhere(condition: WhereCondition<T>): QueryBuilder<T> {
+    return new QueryBuilder<T>(this.model.table, this.executor).orWhere(
+      condition
+    );
+  }
+
+  groupBy(...fields: (keyof T)[]): QueryBuilder<T> {
+    return new QueryBuilder<T>(this.model.table, this.executor).groupBy(...fields);
+  }
+
+  addGroupBy(...fields: (keyof T)[]): QueryBuilder<T> {
+    return new QueryBuilder<T>(this.model.table, this.executor).addGroupBy(...fields);
+  }
+
   select<S extends SelectFields<T>>(fields: S): SelectQueryBuilder<T, S> {
     return new QueryBuilder<T>(this.model.table, this.executor).select(fields);
   }
@@ -75,12 +89,16 @@ export class Repository<T = any, S extends RepositoryScopes<T> = any> {
     where?: WhereCondition<T>;
     select: S;
     orderBy?: { field: keyof T; direction?: "asc" | "desc" };
+    groupBy?: (keyof T)[];
+    having?: WhereCondition<T>;
     limit?: number;
     offset?: number;
   }): Promise<SelectedType<T, S>[]>;
   async getMany(options: {
     where?: WhereCondition<T>;
     orderBy?: { field: keyof T; direction?: "asc" | "desc" };
+    groupBy?: (keyof T)[];
+    having?: WhereCondition<T>;
     limit?: number;
     offset?: number;
   }): Promise<T[]>;
@@ -88,6 +106,8 @@ export class Repository<T = any, S extends RepositoryScopes<T> = any> {
     where?: WhereCondition<T>;
     select?: S;
     orderBy?: { field: keyof T; direction?: "asc" | "desc" };
+    groupBy?: (keyof T)[];
+    having?: WhereCondition<T>;
     limit?: number;
     offset?: number;
   }): Promise<T[] | SelectedType<T, S>[]> {
@@ -96,6 +116,12 @@ export class Repository<T = any, S extends RepositoryScopes<T> = any> {
     if (options) {
       if (options.where) {
         qb = qb.where(options.where);
+      }
+      if (options.groupBy && options.groupBy.length > 0) {
+        qb = qb.groupBy(...options.groupBy);
+      }
+      if (options.having) {
+        qb = qb.having(options.having);
       }
       if (options.orderBy) {
         qb = qb.orderBy(options.orderBy.field, options.orderBy.direction);
@@ -121,17 +147,23 @@ export class Repository<T = any, S extends RepositoryScopes<T> = any> {
     where?: WhereCondition<T>;
     select: S;
     orderBy?: { field: keyof T; direction?: "asc" | "desc" };
+    groupBy?: (keyof T)[];
+    having?: WhereCondition<T>;
     pagination: PaginationInput;
   }): Promise<PaginationResult<SelectedType<T, S>>>;
   async getManyPaginated(options: {
     where?: WhereCondition<T>;
     orderBy?: { field: keyof T; direction?: "asc" | "desc" };
+    groupBy?: (keyof T)[];
+    having?: WhereCondition<T>;
     pagination: PaginationInput;
   }): Promise<PaginationResult<T>>;
   async getManyPaginated<S extends SelectFields<T>>(options: {
     where?: WhereCondition<T>;
     select?: S;
     orderBy?: { field: keyof T; direction?: "asc" | "desc" };
+    groupBy?: (keyof T)[];
+    having?: WhereCondition<T>;
     pagination: PaginationInput;
   }): Promise<PaginationResult<T> | PaginationResult<SelectedType<T, S>>> {
     const { pagination } = options;
@@ -142,6 +174,12 @@ export class Repository<T = any, S extends RepositoryScopes<T> = any> {
     if (options.where) {
       countQb = countQb.where(options.where);
     }
+    if (options.groupBy && options.groupBy.length > 0) {
+      countQb = countQb.groupBy(...options.groupBy);
+    }
+    if (options.having) {
+      countQb = countQb.having(options.having);
+    }
 
     // Get total count
     const totalItems = await countQb.count();
@@ -151,6 +189,12 @@ export class Repository<T = any, S extends RepositoryScopes<T> = any> {
     let dataQb = new QueryBuilder<T>(this.model.table, this.executor);
     if (options.where) {
       dataQb = dataQb.where(options.where);
+    }
+    if (options.groupBy && options.groupBy.length > 0) {
+      dataQb = dataQb.groupBy(...options.groupBy);
+    }
+    if (options.having) {
+      dataQb = dataQb.having(options.having);
     }
     if (options.orderBy) {
       dataQb = dataQb.orderBy(options.orderBy.field, options.orderBy.direction);
@@ -188,21 +232,33 @@ export class Repository<T = any, S extends RepositoryScopes<T> = any> {
     where?: WhereCondition<T>;
     select: S;
     orderBy?: { field: keyof T; direction?: "asc" | "desc" };
+    groupBy?: (keyof T)[];
+    having?: WhereCondition<T>;
   }): Promise<SelectedType<T, S> | null>;
   async getOne(options: {
     where?: WhereCondition<T>;
     orderBy?: { field: keyof T; direction?: "asc" | "desc" };
+    groupBy?: (keyof T)[];
+    having?: WhereCondition<T>;
   }): Promise<T | null>;
   async getOne<S extends SelectFields<T>>(options?: {
     where?: WhereCondition<T>;
     select?: S;
     orderBy?: { field: keyof T; direction?: "asc" | "desc" };
+    groupBy?: (keyof T)[];
+    having?: WhereCondition<T>;
   }): Promise<T | SelectedType<T, S> | null> {
     let qb = new QueryBuilder<T>(this.model.table, this.executor);
 
     if (options) {
       if (options.where) {
         qb = qb.where(options.where);
+      }
+      if (options.groupBy && options.groupBy.length > 0) {
+        qb = qb.groupBy(...options.groupBy);
+      }
+      if (options.having) {
+        qb = qb.having(options.having);
       }
       if (options.orderBy) {
         qb = qb.orderBy(options.orderBy.field, options.orderBy.direction);
@@ -255,6 +311,12 @@ export class Repository<T = any, S extends RepositoryScopes<T> = any> {
       if (options.where) {
         qb = qb.where(options.where);
       }
+      if (options.groupBy && options.groupBy.length > 0) {
+        qb = qb.groupBy(...options.groupBy);
+      }
+      if (options.having) {
+        qb = qb.having(options.having);
+      }
       if (options.orderBy) {
         qb = qb.orderBy(options.orderBy.field, options.orderBy.direction);
       }
@@ -289,6 +351,12 @@ export class Repository<T = any, S extends RepositoryScopes<T> = any> {
       if (options.where) {
         qb = qb.where(options.where);
       }
+      if (options.groupBy && options.groupBy.length > 0) {
+        qb = qb.groupBy(...options.groupBy);
+      }
+      if (options.having) {
+        qb = qb.having(options.having);
+      }
       if (options.orderBy) {
         qb = qb.orderBy(options.orderBy.field, options.orderBy.direction);
       }
@@ -318,13 +386,19 @@ export class Repository<T = any, S extends RepositoryScopes<T> = any> {
   async findPaginated(
     options: FindPaginatedOptions<T>
   ): Promise<PaginationResult<T>> {
-    const { pagination, relations, ...findOptions } = options;
+    const { pagination, relations, groupBy, having, ...findOptions } = options;
     const offset = (pagination.page - 1) * pagination.pageSize;
 
     // Build base query for counting
     let countQb = new QueryBuilder<T>(this.model.table, this.executor);
     if (findOptions.where) {
       countQb = countQb.where(findOptions.where);
+    }
+    if (groupBy && groupBy.length > 0) {
+      countQb = countQb.groupBy(...groupBy);
+    }
+    if (having) {
+      countQb = countQb.having(having);
     }
 
     // Get total count
@@ -334,6 +408,8 @@ export class Repository<T = any, S extends RepositoryScopes<T> = any> {
     // Build query for data with pagination
     const dataOptions: FindOptions<T> = {
       ...findOptions,
+      ...(groupBy && { groupBy }),
+      ...(having && { having }),
       limit: pagination.pageSize,
       offset,
       ...(relations && { relations }),
@@ -594,8 +670,33 @@ export class ScopedQueryBuilder<T> {
     return this;
   }
 
+  orWhere(condition: WhereCondition<T>): this {
+    this.queryBuilder = this.queryBuilder.orWhere(condition);
+    return this;
+  }
+
   orderBy(field: keyof T, direction: "asc" | "desc" = "asc"): this {
     this.queryBuilder = this.queryBuilder.orderBy(field, direction);
+    return this;
+  }
+
+  groupBy(...fields: (keyof T)[]): this {
+    this.queryBuilder = this.queryBuilder.groupBy(...fields);
+    return this;
+  }
+
+  addGroupBy(...fields: (keyof T)[]): this {
+    this.queryBuilder = this.queryBuilder.addGroupBy(...fields);
+    return this;
+  }
+
+  having(condition: WhereCondition<T>): this {
+    this.queryBuilder = this.queryBuilder.having(condition);
+    return this;
+  }
+
+  andHaving(condition: WhereCondition<T>): this {
+    this.queryBuilder = this.queryBuilder.andHaving(condition);
     return this;
   }
 

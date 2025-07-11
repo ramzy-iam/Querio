@@ -18,6 +18,7 @@ export interface ModelInstance<T = any> {
   // Basic query methods
   where: (condition: WhereCondition<T>) => QueryBuilder<T>;
   andWhere: (condition: WhereCondition<T>) => QueryBuilder<T>;
+  orWhere: (condition: WhereCondition<T>) => QueryBuilder<T>;
   select: <S extends SelectFields<T>>(fields: S) => SelectQueryBuilder<T, S>;
   update: (data: Partial<T>) => Promise<T[]>;
   delete: () => Promise<T[]>;
@@ -34,6 +35,11 @@ export interface ModelInstance<T = any> {
   orderBy: (field: keyof T, direction?: "asc" | "desc") => QueryBuilder<T>;
   limit: (count: number) => QueryBuilder<T>;
   offset: (count: number) => QueryBuilder<T>;
+
+  // Group by methods
+  groupBy: (...fields: (keyof T)[]) => QueryBuilder<T>;
+  addGroupBy: (...fields: (keyof T)[]) => QueryBuilder<T>;
+  having: (condition: WhereCondition<T>) => QueryBuilder<T>;
 
   // Join methods
   innerJoin: (table: string, on: string, alias?: string) => QueryBuilder<T>;
@@ -86,8 +92,33 @@ export class QueryBuilderWithRelations<T> extends QueryBuilder<T> {
     return this;
   }
 
+  andWhere(condition: WhereCondition<T>): this {
+    super.andWhere(condition);
+    return this;
+  }
+
+  orWhere(condition: WhereCondition<T>): this {
+    super.orWhere(condition);
+    return this;
+  }
+
   orderBy(field: keyof T, direction: "asc" | "desc" = "asc"): this {
     super.orderBy(field, direction);
+    return this;
+  }
+
+  groupBy(...fields: (keyof T)[]): this {
+    super.groupBy(...fields);
+    return this;
+  }
+
+  addGroupBy(...fields: (keyof T)[]): this {
+    super.addGroupBy(...fields);
+    return this;
+  }
+
+  having(condition: WhereCondition<T>): this {
+    super.having(condition);
     return this;
   }
 
@@ -148,6 +179,8 @@ export function defineModel<T = any>(
       createQueryBuilder().where(condition),
     andWhere: (condition: WhereCondition<T>) =>
       createQueryBuilder().andWhere(condition),
+    orWhere: (condition: WhereCondition<T>) =>
+      createQueryBuilder().orWhere(condition),
     select: <S extends SelectFields<T>>(fields: S) =>
       createQueryBuilder().select(fields),
     update: (data: Partial<T>) => createQueryBuilder().update(data),
@@ -178,6 +211,11 @@ export function defineModel<T = any>(
       createQueryBuilder().orderBy(field, direction),
     limit: (count) => createQueryBuilder().limit(count),
     offset: (count) => createQueryBuilder().offset(count),
+
+    // Group by methods
+    groupBy: (...fields) => createQueryBuilder().groupBy(...fields),
+    addGroupBy: (...fields) => createQueryBuilder().addGroupBy(...fields),
+    having: (condition) => createQueryBuilder().having(condition),
 
     // Join methods
     innerJoin: (table, on, alias) =>

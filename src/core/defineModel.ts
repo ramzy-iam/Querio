@@ -10,6 +10,7 @@ export interface ModelInstance<T = any> {
   // Query methods with proper typing
   where: (condition: WhereCondition<T>) => QueryBuilder<T>;
   andWhere: (condition: WhereCondition<T>) => QueryBuilder<T>;
+  orWhere: (condition: WhereCondition<T>) => QueryBuilder<T>;
   select: <S extends SelectFields<T>>(fields: S) => SelectQueryBuilder<T, S>;
   update: (data: Partial<T>) => Promise<T[]>;
   delete: () => Promise<T[]>;
@@ -21,6 +22,11 @@ export interface ModelInstance<T = any> {
   orderBy: (field: keyof T, direction?: 'asc' | 'desc') => QueryBuilder<T>;
   limit: (count: number) => QueryBuilder<T>;
   offset: (count: number) => QueryBuilder<T>;
+  
+  // Group by methods
+  groupBy: (...fields: (keyof T)[]) => QueryBuilder<T>;
+  addGroupBy: (...fields: (keyof T)[]) => QueryBuilder<T>;
+  having: (condition: WhereCondition<T>) => QueryBuilder<T>;
   
   // Join methods
   innerJoin: (table: string, on: string, alias?: string) => QueryBuilder<T>;
@@ -57,6 +63,7 @@ export function defineModel<T = any>(
     // Query methods with explicit type annotations
     where: (condition: WhereCondition<T>) => createQueryBuilder().where(condition),
     andWhere: (condition: WhereCondition<T>) => createQueryBuilder().andWhere(condition),
+    orWhere: (condition: WhereCondition<T>) => createQueryBuilder().orWhere(condition),
     select: <S extends SelectFields<T>>(fields: S) => createQueryBuilder().select(fields),
     update: (data: Partial<T>) => createQueryBuilder().update(data),
     delete: () => createQueryBuilder().delete(),
@@ -64,12 +71,15 @@ export function defineModel<T = any>(
     getOne: () => createQueryBuilder().getOne(),
     count: () => createQueryBuilder().count(),
     
- 
-    
     // Order and limit methods
     orderBy: (field, direction) => createQueryBuilder().orderBy(field, direction),
     limit: (count) => createQueryBuilder().limit(count),
     offset: (count) => createQueryBuilder().offset(count),
+    
+    // Group by methods
+    groupBy: (...fields) => createQueryBuilder().groupBy(...fields),
+    addGroupBy: (...fields) => createQueryBuilder().addGroupBy(...fields),
+    having: (condition) => createQueryBuilder().having(condition),
     
     // Join methods
     innerJoin: (table, on, alias) => createQueryBuilder().innerJoin(table, on, alias),
