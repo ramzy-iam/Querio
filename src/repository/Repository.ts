@@ -11,8 +11,12 @@ import {
   RelationLoadOptions,
 } from "../types";
 import { QueryBuilder, SelectQueryBuilder } from "../builder/QueryBuilder";
-import { ModelInstance } from "../core/defineModel";
-import { getModelTable, getModelRelations, getRegisteredModel } from "../core/modelRegistry";
+import { ModelInstance } from "../core/model";
+import {
+  getModelTable,
+  getModelRelations,
+  getRegisteredModel,
+} from "../core/modelRegistry";
 import { Relation } from "../core/relations";
 
 export type ScopeFunction<T> = (qb: QueryBuilder<T>) => QueryBuilder<T>;
@@ -72,11 +76,15 @@ export class Repository<T = any, S extends RepositoryScopes<T> = any> {
   }
 
   groupBy(...fields: (keyof T)[]): QueryBuilder<T> {
-    return new QueryBuilder<T>(this.model.table, this.executor).groupBy(...fields);
+    return new QueryBuilder<T>(this.model.table, this.executor).groupBy(
+      ...fields
+    );
   }
 
   addGroupBy(...fields: (keyof T)[]): QueryBuilder<T> {
-    return new QueryBuilder<T>(this.model.table, this.executor).addGroupBy(...fields);
+    return new QueryBuilder<T>(this.model.table, this.executor).addGroupBy(
+      ...fields
+    );
   }
 
   select<S extends SelectFields<T>>(fields: S): SelectQueryBuilder<T, S> {
@@ -562,24 +570,32 @@ export class Repository<T = any, S extends RepositoryScopes<T> = any> {
 
       case "belongsToMany":
         // Handle many-to-many relationships using pivot table
-        if (relation.pivotTable && 'pivotForeignKey' in relation && 'pivotRelatedKey' in relation) {
+        if (
+          relation.pivotTable &&
+          "pivotForeignKey" in relation &&
+          "pivotRelatedKey" in relation
+        ) {
           // Query pivot table to get related IDs
-          const pivotQuery = new QueryBuilder(relation.pivotTable, this.executor)
-            .where({ [relation.pivotForeignKey]: { in: ids } });
+          const pivotQuery = new QueryBuilder(
+            relation.pivotTable,
+            this.executor
+          ).where({ [relation.pivotForeignKey]: { in: ids } });
           const pivotRecords = await pivotQuery.getMany();
-          
+
           if (pivotRecords.length) {
             // Get related record IDs from pivot table
             const relatedIds = pivotRecords
               .map((pivot: any) => pivot[relation.pivotRelatedKey])
               .filter((id) => id != null);
-            
+
             if (relatedIds.length) {
               // Query the target table for related records
-              const relatedQuery = new QueryBuilder(targetTable, this.executor)
-                .where({ id: { in: relatedIds } });
+              const relatedQuery = new QueryBuilder(
+                targetTable,
+                this.executor
+              ).where({ id: { in: relatedIds } });
               relatedRecords = await relatedQuery.getMany();
-              
+
               // Map results back to parent records through pivot table
               for (const record of records) {
                 const recordId = (record as any)[localKey];
@@ -589,17 +605,20 @@ export class Repository<T = any, S extends RepositoryScopes<T> = any> {
                 const relatedForRecord = pivotMatches
                   .map((pivot: any) => {
                     return relatedRecords.find(
-                      (related: any) => related.id === pivot[relation.pivotRelatedKey]
+                      (related: any) =>
+                        related.id === pivot[relation.pivotRelatedKey]
                     );
                   })
                   .filter((related) => related != null);
-                
+
                 (record as any)[relationName] = relatedForRecord;
               }
             }
           }
         } else {
-          console.warn(`belongsToMany relation '${relationName}' requires a pivotTable and pivot keys`);
+          console.warn(
+            `belongsToMany relation '${relationName}' requires a pivotTable and pivot keys`
+          );
         }
         break;
     }
@@ -611,7 +630,9 @@ export class Repository<T = any, S extends RepositoryScopes<T> = any> {
       try {
         relatedModel = getRegisteredModel(relation.targetModel);
         if (!relatedModel) {
-          throw new Error(`Model '${relation.targetModel}' not found in registry`);
+          throw new Error(
+            `Model '${relation.targetModel}' not found in registry`
+          );
         }
       } catch (error) {
         console.warn(
@@ -622,9 +643,12 @@ export class Repository<T = any, S extends RepositoryScopes<T> = any> {
 
       // Create a repository for the related model
       const relatedRepository = new Repository(relatedModel, {}, this.executor);
-      
+
       // Load nested relations on the related records
-      await relatedRepository.loadRelations(relatedRecords, loadOption as Record<string, boolean | Record<string, boolean>>);
+      await relatedRepository.loadRelations(
+        relatedRecords,
+        loadOption as Record<string, boolean | Record<string, boolean>>
+      );
     }
   }
 
