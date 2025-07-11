@@ -109,8 +109,6 @@ export const User = defineModel<UserType>("test_users", {
     age: nullable.integer(),
     isActive: boolean({ default: true }),
     createdAt: timestamp(),
-  },
-  relations: {
     profile: hasOne("test_profiles", "userId"),
     accounts: hasMany("test_accounts", "userId"),
     posts: hasMany("test_posts", "userId"),
@@ -133,8 +131,6 @@ export const Account = defineModel<AccountType>("test_accounts", {
     balance: integer({ default: 0 }),
     isActive: boolean({ default: true }),
     createdAt: timestamp(),
-  },
-  relations: {
     user: belongsTo("test_users", "userId"),
   },
 });
@@ -149,8 +145,6 @@ export const Profile = defineModel<ProfileType>("test_profiles", {
     website: nullable.text(),
     avatar: nullable.text(),
     createdAt: timestamp(),
-  },
-  relations: {
     user: belongsTo("test_users", "userId"),
   },
 });
@@ -166,8 +160,6 @@ export const Post = defineModel<PostType>("test_posts", {
     published: boolean({ default: false }),
     createdAt: timestamp(),
     updatedAt: timestamp(),
-  },
-  relations: {
     user: belongsTo("test_users", "userId"),
     comments: hasMany("test_comments", "postId"),
     tags: belongsToMany("test_tags", "test_post_tags", "postId", "tagId"),
@@ -184,8 +176,6 @@ export const Comment = defineModel<CommentType>("test_comments", {
     userId: uuid(),
     parentCommentId: nullable.uuid(),
     createdAt: timestamp(),
-  },
-  relations: {
     post: belongsTo("test_posts", "postId"),
     user: belongsTo("test_users", "userId"),
     parentComment: belongsTo("test_comments", "parentCommentId"),
@@ -201,8 +191,6 @@ export const Category = defineModel<CategoryType>("test_categories", {
     name: text({ unique: true }),
     description: nullable.text(),
     createdAt: timestamp(),
-  },
-  relations: {
     users: belongsToMany(
       "test_users",
       "test_user_categories",
@@ -213,19 +201,20 @@ export const Category = defineModel<CategoryType>("test_categories", {
 });
 
 // UserCategory pivot model
-export const UserCategory = defineModel<UserCategoryType>("test_user_categories", {
-  table: "test_user_categories",
-  fields: {
-    id: uuid({ primaryKey: true }),
-    userId: uuid(),
-    categoryId: uuid(),
-    joinedAt: timestamp(),
-  },
-  relations: {
-    user: belongsTo("test_users", "userId"),
-    category: belongsTo("test_categories", "categoryId"),
-  },
-});
+export const UserCategory = defineModel<UserCategoryType>(
+  "test_user_categories",
+  {
+    table: "test_user_categories",
+    fields: {
+      id: uuid({ primaryKey: true }),
+      userId: uuid(),
+      categoryId: uuid(),
+      joinedAt: timestamp(),
+      user: belongsTo("test_users", "userId"),
+      category: belongsTo("test_categories", "categoryId"),
+    },
+  }
+);
 
 // Tag model (many-to-many with Post)
 export const Tag = defineModel<TagType>("test_tags", {
@@ -235,8 +224,6 @@ export const Tag = defineModel<TagType>("test_tags", {
     name: text({ unique: true }),
     color: nullable.text(),
     createdAt: timestamp(),
-  },
-  relations: {
     posts: belongsToMany("test_posts", "test_post_tags", "tagId", "postId"),
   },
 });
@@ -249,8 +236,6 @@ export const PostTag = defineModel<PostTagType>("test_post_tags", {
     postId: uuid(),
     tagId: uuid(),
     createdAt: timestamp(),
-  },
-  relations: {
     post: belongsTo("test_posts", "postId"),
     tag: belongsTo("test_tags", "tagId"),
   },

@@ -132,6 +132,12 @@ export interface FieldDefinition {
   enumName?: string; // Custom enum type name in database
 }
 
+// Import relation types
+export type { Relation } from "../core/relations";
+
+// Combined field definition that can be either a field or a relation
+export type FieldOrRelationDefinition = FieldDefinition | any; // Allow relations
+
 // Constraint definitions for table-level constraints
 export interface UniqueConstraint {
   name?: string; // Optional constraint name
@@ -148,7 +154,7 @@ export interface TableConstraints {
   custom?: CustomConstraint[]; // Custom SQL constraints
 }
 
-export type FieldsDefinition = Record<string, FieldDefinition>;
+export type FieldsDefinition = Record<string, FieldOrRelationDefinition>;
 
 // Utility function to convert camelCase to snake_case
 export function camelToSnake(str: string): string {

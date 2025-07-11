@@ -1,27 +1,67 @@
-import { FieldsDefinition, TableConstraints } from "../types";
-import { RelationDefinition } from "./relations";
+import { FieldsDefinition, TableConstraints, FieldDefinition } from "../types";
+import { RelationDefinition, Relation } from "./relations";
 
 export interface ModelConfiguration {
   table: string;
   fields: FieldsDefinition;
   constraints?: TableConstraints;
-  relations?: RelationDefinition;
+  relations?: RelationDefinition; // Keep for backward compatibility
 }
 
 export interface RegisteredModel extends ModelConfiguration {
   name: string;
+  actualFields: Record<string, FieldDefinition>; // Separated actual fields
+  actualRelations: RelationDefinition; // Separated relations
 }
 
 // Global model registry
 const modelRegistry = new Map<string, RegisteredModel>();
 
+// Helper function to separate fields from relations
+function separateFieldsAndRelations(fields: FieldsDefinition): {
+  actualFields: Record<string, FieldDefinition>;
+  actualRelations: RelationDefinition;
+} {
+  const actualFields: Record<string, FieldDefinition> = {};
+  const actualRelations: RelationDefinition = {};
+
+  for (const [key, value] of Object.entries(fields)) {
+    // Check if it's a relation by checking if it has a relation type
+    if (value && typeof value === "object" && "type" in value) {
+      const relationType = (value as any).type;
+      if (
+        ["hasOne", "hasMany", "belongsTo", "belongsToMany"].includes(
+          relationType
+        )
+      ) {
+        actualRelations[key] = value as Relation;
+      } else {
+        actualFields[key] = value as FieldDefinition;
+      }
+    } else {
+      actualFields[key] = value as FieldDefinition;
+    }
+  }
+
+  return { actualFields, actualRelations };
+}
+
 export function registerModel(
   name: string,
   config: ModelConfiguration
 ): RegisteredModel {
+  const { actualFields, actualRelations } = separateFieldsAndRelations(
+    config.fields
+  );
+
+  // Merge with explicit relations if provided
+  const mergedRelations = { ...actualRelations, ...(config.relations || {}) };
+
   const registeredModel: RegisteredModel = {
     name,
     ...config,
+    actualFields,
+    actualRelations: mergedRelations,
   };
 
   modelRegistry.set(name, registeredModel);

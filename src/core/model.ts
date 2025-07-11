@@ -139,7 +139,7 @@ export function setGlobalExecutor(executor: QueryExecutor): void {
   globalExecutor = executor;
 }
 
-export function defineModel<T = any>(
+export function defineModel<T>(
   name: string,
   config: ModelConfiguration
 ): ModelInstance<T> {
@@ -155,7 +155,7 @@ export function defineModel<T = any>(
     return new QueryBuilder<T>(
       registeredModel.table,
       globalExecutor,
-      registeredModel.fields
+      registeredModel.actualFields // Use separated fields
     );
   };
 
@@ -171,8 +171,11 @@ export function defineModel<T = any>(
   const model: ModelInstance<T> = {
     name: registeredModel.name,
     table: registeredModel.table,
-    fields: registeredModel.fields,
-    ...(registeredModel.relations && { relations: registeredModel.relations }),
+    fields: registeredModel.fields, // Keep original for compatibility
+    ...(registeredModel.actualRelations &&
+      Object.keys(registeredModel.actualRelations).length > 0 && {
+        relations: registeredModel.actualRelations,
+      }),
 
     // Basic query methods
     where: (condition: WhereCondition<T>) =>
@@ -200,7 +203,7 @@ export function defineModel<T = any>(
       return new QueryBuilderWithRelations<T>(
         registeredModel.table,
         globalExecutor,
-        registeredModel.fields,
+        registeredModel.actualFields, // Use separated fields
         relationLoader,
         relations
       );
