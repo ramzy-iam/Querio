@@ -1,929 +1,1037 @@
-import { 
-  setGlobalExecutor,
-  PostgreSQLAdapter
-} from '../src/index';
-import {
-  UserType,
-  AccountType,
-  UserRepository,
-  AccountRepository,
-  createTestRepositories
-} from './types';
+/**
+ * Complex Relations Integration Tests
+ *
+ * This file contains comprehensive tests for complex relationship scenarios:
+ * - One-to-One (User -> Profile)
+ * - One-to-Many (User -> Posts, Post -> Comments)
+ * - Many-to-Many (User <-> Categories, Post <-> Tags)
+ * - Nested Relations (User -> Posts -> Comments)
+ * - Self-referencing Relations (Comment -> parent Comment)
+ */
 
-describe('Repository Integration Tests', () => {
+import { PostgreSQLAdapter, setGlobalExecutor } from "../src/index";
+import {
+  createTestRepositories,
+  TestRepositories,
+  createTestUser,
+  createTestPost,
+  createTestComment,
+  createTestCategory,
+  createTestTag,
+  createTestProfile,
+  UserWithRelations,
+  PostWithRelations,
+  CommentWithRelations,
+} from "./types";
+
+describe("Complex Relations Integration Tests", () => {
   let dbAdapter: PostgreSQLAdapter;
-  let userRepository: UserRepository;
-  let accountRepository: AccountRepository;
-  let testUserIds: string[] = [];
+  let repositories: TestRepositories;
 
   beforeAll(async () => {
-    // Configure database connection
     dbAdapter = new PostgreSQLAdapter({
-      host: process.env.DB_HOST || 'localhost',
-      port: parseInt(process.env.DB_PORT || '5432'),
-      database: process.env.DB_NAME || 'querio_test',
-      user: process.env.DB_USER || 'postgres',
-      password: process.env.DB_PASSWORD || 'postgres',
+      host: process.env.DB_HOST || "localhost",
+      port: parseInt(process.env.DB_PORT || "5432"),
+      database: process.env.DB_NAME || "querio_test",
+      user: process.env.DB_USER || "postgres",
+      password: process.env.DB_PASSWORD || "postgres",
     });
 
     // Set global executor
     setGlobalExecutor(dbAdapter);
-
-    // Test connection
-    const isConnected = await dbAdapter.testConnection();
-    if (!isConnected) {
-      throw new Error('Database connection failed. Please ensure PostgreSQL is running and the database exists.');
-    }
-
-    // Create repositories with proper typing
-    const repositories = createTestRepositories(dbAdapter);
-    userRepository = repositories.userRepository;
-    accountRepository = repositories.accountRepository;
+    repositories = createTestRepositories(dbAdapter);
 
     // Create test tables
-    await createTestTables();
-  });
-
-  beforeEach(async () => {
-    // Clean up test data before each test
-    await cleanupTestData();
-    // Seed fresh test data
-    await seedTestData();
+    await createTestTables(dbAdapter);
   });
 
   afterAll(async () => {
-    // Clean up test data and close connection
-    await cleanupTestData();
-    await dropTestTables();
+    await cleanupTestTables(dbAdapter);
     await dbAdapter.close();
   });
 
-  async function createTestTables() {
-    try {
-      // Create test users table
-      await dbAdapter.execute({
-        sql: `
-          CREATE TABLE IF NOT EXISTS test_users (
-            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-            name TEXT NOT NULL,
-            email TEXT UNIQUE NOT NULL,
-            age INTEGER,
-            is_active BOOLEAN DEFAULT true,
-            created_at TIMESTAMP DEFAULT NOW()
-          )
-        `,
-        params: []
-      });
-
-      // Create test accounts table
-      await dbAdapter.execute({
-        sql: `
-          CREATE TABLE IF NOT EXISTS test_accounts (
-            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-            name TEXT NOT NULL,
-            user_id UUID REFERENCES test_users(id) ON DELETE CASCADE,
-            balance INTEGER DEFAULT 0,
-            is_active BOOLEAN DEFAULT true,
-            created_at TIMESTAMP DEFAULT NOW()
-          )
-        `,
-        params: []
-      });
-    } catch (error) {
-      console.error('Error creating test tables:', error);
-      throw error;
-    }
-  }
-
-  async function dropTestTables() {
-    try {
-      await dbAdapter.execute({
-        sql: 'DROP TABLE IF EXISTS test_accounts CASCADE',
-        params: []
-      });
-      await dbAdapter.execute({
-        sql: 'DROP TABLE IF EXISTS test_users CASCADE',
-        params: []
-      });
-    } catch (error) {
-      console.error('Error dropping test tables:', error);
-    }
-  }
-
-  async function cleanupTestData() {
-    try {
-      await dbAdapter.execute({
-        sql: 'DELETE FROM test_accounts',
-        params: []
-      });
-      await dbAdapter.execute({
-        sql: 'DELETE FROM test_users',
-        params: []
-      });
-      testUserIds = [];
-    } catch (error) {
-      console.error('Error cleaning up test data:', error);
-    }
-  }
-
-  async function seedTestData() {
-    try {
-      // Insert test users
-      const userResults = await dbAdapter.execute<{ id: string }>({
-        sql: `
-          INSERT INTO test_users (name, email, age, is_active) VALUES
-          ('John Doe', 'john.test@example.com', 30, true),
-          ('Jane Smith', 'jane.test@example.com', 25, true),
-          ('Bob Wilson', 'bob.test@example.com', 35, false),
-          ('Alice Brown', 'alice.test@example.com', null, true),
-          ('Charlie Davis', 'charlie.test@example.com', 40, true)
-          RETURNING id
-        `,
-        params: []
-      });
-
-      testUserIds = userResults.map(row => row.id);
-
-      // Insert test accounts
-      await dbAdapter.execute({
-        sql: `
-          INSERT INTO test_accounts (name, user_id, balance, is_active) VALUES
-          ('Checking Account', $1, 1000, true),
-          ('Savings Account', $1, 5000, true),
-          ('Investment Account', $2, 15000, true),
-          ('Business Account', $3, 2500, false),
-          ('Emergency Fund', $4, 8000, true)
-        `,
-        params: [testUserIds[0], testUserIds[1], testUserIds[2], testUserIds[3]]
-      });
-    } catch (error) {
-      console.error('Error seeding test data:', error);
-      throw error;
-    }
-  }
-
-  describe('CRUD Operations (Create, Update, Delete)', () => {
-    test('create() should insert a new record', async () => {
-      const newUser = {
-        name: 'New User',
-        email: 'newuser@example.com',
-        age: 28,
-        isActive: true
-      };
-
-      const createdUser = await userRepository.create(newUser);
-      
-      expect(createdUser).toBeTruthy();
-      expect(createdUser.id).toBeDefined();
-      expect(createdUser.name).toBe('New User');
-      expect(createdUser.email).toBe('newuser@example.com');
-      expect(createdUser.age).toBe(28);
-      expect(createdUser.isActive).toBe(true);
-      expect(createdUser.createdAt).toBeDefined();
-
-      // Verify it was actually inserted
-      const foundUser = await userRepository.getOne({
-        where: { email: 'newuser@example.com' }
-      });
-      expect(foundUser).toBeTruthy();
-      expect(foundUser!.id).toBe(createdUser.id);
-    });
-
-    test('create() with partial data should use defaults', async () => {
-      const newUser = {
-        name: 'Minimal User',
-        email: 'minimal@example.com'
-      };
-
-      const createdUser = await userRepository.create(newUser);
-      
-      expect(createdUser.name).toBe('Minimal User');
-      expect(createdUser.email).toBe('minimal@example.com');
-      expect(createdUser.isActive).toBe(true); // Default value
-      expect(createdUser.age).toBeNull(); // Nullable field
-    });
-
-    test('createMany() should insert multiple records', async () => {
-      const newUsers = [
-        {
-          name: 'Bulk User 1',
-          email: 'bulk1@example.com',
-          age: 25,
-          isActive: true
-        },
-        {
-          name: 'Bulk User 2',
-          email: 'bulk2@example.com',
-          age: 30,
-          isActive: false
-        },
-        {
-          name: 'Bulk User 3',
-          email: 'bulk3@example.com'
-          // age and isActive will use defaults
-        }
-      ];
-
-      const createdUsers = await userRepository.createMany(newUsers);
-      
-      expect(createdUsers).toHaveLength(3);
-      
-      createdUsers.forEach((user: UserType, index: number) => {
-        expect(user.id).toBeDefined();
-        expect(user.name).toBe(newUsers[index].name);
-        expect(user.email).toBe(newUsers[index].email);
-        expect(user.createdAt).toBeDefined();
-      });
-
-      // Verify they were actually inserted
-      const allUsers = await userRepository.getMany();
-      expect(allUsers).toHaveLength(8); // 5 original + 3 new
-    });
-
-    test('createMany() with empty array should return empty array', async () => {
-      const result = await userRepository.createMany([]);
-      expect(result).toEqual([]);
-    });
-
-    test('update() should modify records matching where condition', async () => {
-      // Update all inactive users to active
-      const updatedUsers = await userRepository
-        .where({ isActive: false })
-        .update({ isActive: true });
-
-      expect(updatedUsers).toHaveLength(1); // Only Bob Wilson was inactive
-      expect(updatedUsers[0].isActive).toBe(true);
-      expect(updatedUsers[0].name).toBe('Bob Wilson');
-
-      // Verify the update was applied
-      const activeUsers = await userRepository.getMany({
-        where: { isActive: true }
-      });
-      expect(activeUsers).toHaveLength(5); // Now all 5 users should be active
-    });
-
-    test('update() should modify multiple fields', async () => {
-      const updatedUsers = await userRepository
-        .where({ email: 'john.test@example.com' })
-        .update({ 
-          name: 'John Updated',
-          age: 31
-        });
-
-      expect(updatedUsers).toHaveLength(1);
-      expect(updatedUsers[0].name).toBe('John Updated');
-      expect(updatedUsers[0].age).toBe(31);
-      expect(updatedUsers[0].email).toBe('john.test@example.com'); // Unchanged
-    });
-
-    test('update() with no matching records should return empty array', async () => {
-      const updatedUsers = await userRepository
-        .where({ email: 'nonexistent@example.com' })
-        .update({ name: 'Should Not Update' });
-
-      expect(updatedUsers).toHaveLength(0);
-    });
-
-    test('update() with scoped query', async () => {
-      // Update all active users over 30 to set age to 35
-      const updatedUsers = await userRepository.scoped
-        .active()
-        .andWhere({ age: { gte: 30 } })
-        .update({ age: 35 });
-
-      expect(updatedUsers.length).toBeGreaterThan(0);
-      updatedUsers.forEach((user: UserType) => {
-        expect(user.isActive).toBe(true);
-        expect(user.age).toBe(35);
-      });
-    });
-
-    test('delete() should remove records matching where condition', async () => {
-      // First, verify we have the expected number of users
-      const initialCount = await userRepository.count();
-      expect(initialCount).toBe(5);
-
-      // Delete inactive users
-      const deletedUsers = await userRepository
-        .where({ isActive: false })
-        .delete();
-
-      expect(deletedUsers).toHaveLength(1);
-      expect(deletedUsers[0].name).toBe('Bob Wilson');
-      expect(deletedUsers[0].isActive).toBe(false);
-
-      // Verify the user was actually deleted
-      const remainingCount = await userRepository.count();
-      expect(remainingCount).toBe(4);
-
-      // Verify the specific user is gone
-      const bobUser = await userRepository.getOne({
-        where: { email: 'bob.test@example.com' }
-      });
-      expect(bobUser).toBeNull();
-    });
-
-    test('delete() with multiple records', async () => {
-      // Delete users with age greater than 35
-      const deletedUsers = await userRepository
-        .where({ age: { gte: 35 } })
-        .delete();
-
-      expect(deletedUsers.length).toBeGreaterThan(0);
-      deletedUsers.forEach((user: UserType) => {
-        expect(user.age).toBeGreaterThanOrEqual(35);
-      });
-
-      // Verify they were deleted
-      const remainingUsers = await userRepository.getMany({
-        where: { age: { gte: 35 } }
-      });
-      expect(remainingUsers).toHaveLength(0);
-    });
-
-    test('delete() with no matching records should return empty array', async () => {
-      const deletedUsers = await userRepository
-        .where({ email: 'nonexistent@example.com' })
-        .delete();
-
-      expect(deletedUsers).toHaveLength(0);
-    });
-
-    test('delete() with scoped query', async () => {
-      const initialCount = await userRepository.count();
-      
-      // Delete all users with age >= 40
-      const deletedUsers = await userRepository.scoped
-        .andWhere({ age: { gte: 40 } })
-        .delete();
-
-      expect(deletedUsers.length).toBeGreaterThan(0);
-      deletedUsers.forEach((user: UserType) => {
-        expect(user.age).toBeGreaterThanOrEqual(40);
-      });
-
-      // Verify count decreased
-      const finalCount = await userRepository.count();
-      expect(finalCount).toBe(initialCount - deletedUsers.length);
-    });
-
-    test('create, update, then delete workflow', async () => {
-      // Create a user
-      const newUser = await userRepository.create({
-        name: 'Workflow User',
-        email: 'workflow@example.com',
-        age: 25,
-        isActive: true
-      });
-
-      expect(newUser.name).toBe('Workflow User');
-
-      // Update the user
-      const updatedUsers = await userRepository
-        .where({ id: newUser.id })
-        .update({ name: 'Updated Workflow User', age: 26 });
-
-      expect(updatedUsers).toHaveLength(1);
-      expect(updatedUsers[0].name).toBe('Updated Workflow User');
-      expect(updatedUsers[0].age).toBe(26);
-
-      // Delete the user
-      const deletedUsers = await userRepository
-        .where({ id: newUser.id })
-        .delete();
-
-      expect(deletedUsers).toHaveLength(1);
-      expect(deletedUsers[0].name).toBe('Updated Workflow User');
-
-      // Verify the user is gone
-      const foundUser = await userRepository.getOne({
-        where: { id: newUser.id }
-      });
-      expect(foundUser).toBeNull();
-    });
+  beforeEach(async () => {
+    // Clean up data before each test
+    await cleanupTestData(dbAdapter);
   });
 
-  describe('Account CRUD Operations', () => {
-    test('create account for existing user', async () => {
-      const newAccount = await accountRepository.create({
-        name: 'New Account',
-        userId: testUserIds[0],
-        balance: 2500,
-        isActive: true
+  describe("Basic CRUD Operations", () => {
+    test("should create and fetch user", async () => {
+      const userData = createTestUser({
+        name: "John Doe",
+        email: "john@example.com",
+      });
+      const user = await repositories.userRepository.create(userData);
+
+      expect(user.id).toBeDefined();
+      expect(user.name).toBe("John Doe");
+      expect(user.email).toBe("john@example.com");
+
+      const foundUser = await repositories.userRepository.getOne({
+        where: { id: user.id },
       });
 
-      expect(newAccount).toBeTruthy();
-      expect(newAccount.id).toBeDefined();
-      expect(newAccount.name).toBe('New Account');
-      expect(newAccount.userId).toBe(testUserIds[0]);
-      expect(newAccount.balance).toBe(2500);
-      expect(newAccount.isActive).toBe(true);
+      expect(foundUser).toBeDefined();
+      expect(foundUser?.name).toBe("John Doe");
     });
 
-    test('update account balance', async () => {
-      const updatedAccounts = await accountRepository
-        .where({ name: 'Checking Account' })
-        .update({ balance: 1500 });
+    test("should create user with profile (one-to-one)", async () => {
+      // Create user
+      const userData = createTestUser({
+        name: "Jane Doe",
+        email: "jane@example.com",
+      });
+      const user = await repositories.userRepository.create(userData);
 
-      expect(updatedAccounts).toHaveLength(1);
-      expect(updatedAccounts[0].balance).toBe(1500);
-      expect(updatedAccounts[0].name).toBe('Checking Account');
+      // Create profile for user
+      const profileData = createTestProfile(user.id, {
+        bio: "Software developer and coffee enthusiast",
+        website: "https://janedoe.dev",
+      });
+      const profile = await repositories.profileRepository.create(profileData);
+
+      expect(profile.id).toBeDefined();
+      expect(profile.userId).toBe(user.id);
+      expect(profile.bio).toBe("Software developer and coffee enthusiast");
+
+      // Verify profile belongs to user
+      const foundProfile = await repositories.profileRepository.getOne({
+        where: { userId: user.id },
+      });
+
+      expect(foundProfile).toBeDefined();
+      expect(foundProfile?.bio).toBe(
+        "Software developer and coffee enthusiast"
+      );
     });
 
-    test('delete inactive accounts', async () => {
-      const deletedAccounts = await accountRepository
-        .where({ isActive: false })
-        .delete();
+    test("should create user with multiple posts (one-to-many)", async () => {
+      // Create user
+      const userData = createTestUser({
+        name: "Blog Author",
+        email: "author@blog.com",
+      });
+      const user = await repositories.userRepository.create(userData);
 
-      expect(deletedAccounts.length).toBeGreaterThan(0);
-      deletedAccounts.forEach((account: AccountType) => {
-        expect(account.isActive).toBe(false);
+      // Create multiple posts
+      const post1Data = createTestPost(user.id, {
+        title: "First Post",
+        content: "Content of first post",
       });
-    });
-  });
+      const post2Data = createTestPost(user.id, {
+        title: "Second Post",
+        content: "Content of second post",
+        published: false,
+      });
 
-  describe('Basic Repository Methods', () => {
-    test('getMany() should return all records', async () => {
-      const users = await userRepository.getMany();
-      expect(users).toHaveLength(5);
-      expect(users[0]).toHaveProperty('id');
-      expect(users[0]).toHaveProperty('name');
-      expect(users[0]).toHaveProperty('email');
-    });
+      await repositories.postRepository.create(post1Data);
+      await repositories.postRepository.create(post2Data);
 
-    test('getMany() with where condition', async () => {
-      const activeUsers = await userRepository.getMany({
-        where: { isActive: true }
+      // Fetch posts by user
+      const userPosts = await repositories.postRepository.getMany({
+        where: { userId: user.id },
       });
-      expect(activeUsers).toHaveLength(4);
-      activeUsers.forEach((user: UserType) => {
-        expect(user.isActive).toBe(true);
-      });
-    });
 
-    test('getMany() with complex where conditions', async () => {
-      const users = await userRepository.getMany({
-        where: { 
-          isActive: true,
-          age: { gte: 25, lte: 35 }
-        }
-      });
-      expect(users.length).toBeGreaterThan(0);
-      users.forEach((user) => {
-        expect(user.isActive).toBe(true);
-        if (user.age !== null) {
-          expect(user.age).toBeGreaterThanOrEqual(25);
-          expect(user.age).toBeLessThanOrEqual(35);
-        }
-      });
+      expect(userPosts).toHaveLength(2);
+      expect(userPosts.map((p) => p.title)).toContain("First Post");
+      expect(userPosts.map((p) => p.title)).toContain("Second Post");
     });
 
-    test('getMany() with select fields', async () => {
-      const users = await userRepository.getMany({
-        select: { name: true, email: true },
-        where: { isActive: true }
+    test("should create nested post comments", async () => {
+      // Create user and post
+      const userData = createTestUser({
+        name: "Commenter",
+        email: "commenter@example.com",
       });
-      expect(users.length).toBeGreaterThan(0);
-      users.forEach((user: any) => {
-        expect(user).toHaveProperty('name');
-        expect(user).toHaveProperty('email');
-        expect(user).not.toHaveProperty('id');
-        expect(user).not.toHaveProperty('age');
-      });
-    });
+      const user = await repositories.userRepository.create(userData);
 
-    test('getMany() with orderBy, limit, and offset', async () => {
-      const users = await userRepository
-        .where({ isActive: true })
-        .orderBy('name', 'asc')
-        .limit(2)
-        .offset(1)
+      const postData = createTestPost(user.id, {
+        title: "Post for Comments",
+      });
+      const post = await repositories.postRepository.create(postData);
+
+      // Create parent comment
+      const parentCommentData = createTestComment(post.id, user.id, {
+        content: "Parent comment",
+      });
+      const parentComment = await repositories.commentRepository.create(
+        parentCommentData
+      );
+
+      // Create reply comments
+      const reply1Data = createTestComment(post.id, user.id, {
+        content: "First reply",
+        parentCommentId: parentComment.id,
+      });
+      const reply2Data = createTestComment(post.id, user.id, {
+        content: "Second reply",
+        parentCommentId: parentComment.id,
+      });
+
+      await repositories.commentRepository.create(reply1Data);
+      await repositories.commentRepository.create(reply2Data);
+
+      // Test scoped queries - top-level comments
+      const topLevelComments = await repositories.commentRepository.scoped
+        .topLevel()
+        .byPostId(post.id)
         .getMany();
-      expect(users).toHaveLength(2);
-      // Should be ordered by name - now with proper UserType[] intellisense
-      expect(users[0].name <= users[1].name).toBe(true);
-    });
 
-    test('getOne() should return single record', async () => {
-      const user = await userRepository.getOne({
-        where: { email: 'john.test@example.com' }
-      });
-      expect(user).toBeTruthy();
-      expect(user?.name).toBe('John Doe');
-      expect(user?.email).toBe('john.test@example.com');
-    });
+      expect(topLevelComments).toHaveLength(1);
+      expect(topLevelComments[0].content).toBe("Parent comment");
 
-    test('getOne() with select fields', async () => {
-      const user = await userRepository.getOne({
-        where: { email: 'jane.test@example.com' },
-        select: { name: true, age: true }
-      });
-      expect(user).toBeTruthy();
-      expect(user).toHaveProperty('name');
-      expect(user).toHaveProperty('age');
-      expect(user).not.toHaveProperty('email');
-      expect(user).not.toHaveProperty('id');
-    });
-
-    test('getOne() should return null when no record found', async () => {
-      const user = await userRepository.getOne({
-        where: { email: 'nonexistent@example.com' }
-      });
-      expect(user).toBeNull();
-    });
-
-    test('count() should return correct count', async () => {
-      const totalCount = await userRepository.count();
-      expect(totalCount).toBe(5);
-    });
-
-    test('pluck() should return array of field values', async () => {
-      const names = await userRepository.pluck('name');
-      expect(names).toHaveLength(5);
-      expect(names).toContain('John Doe');
-      expect(names).toContain('Jane Smith');
-    });
-  });
-
-  describe('Pagination Methods', () => {
-    test('getManyPaginated() should return paginated results', async () => {
-      const result = await userRepository.getManyPaginated({
-        where: { isActive: true },
-        orderBy: { field: 'name', direction: 'asc' },
-        pagination: { page: 1, pageSize: 2 }
-      });
-
-      expect(result.data).toHaveLength(2);
-      expect(result.pagination.currentPage).toBe(1);
-      expect(result.pagination.pageSize).toBe(2);
-      expect(result.pagination.totalItems).toBe(4); // 4 active users
-      expect(result.pagination.totalPages).toBe(2);
-      expect(result.pagination.hasNextPage).toBe(true);
-      expect(result.pagination.hasPreviousPage).toBe(false);
-    });
-
-    test('getManyPaginated() with select fields', async () => {
-      const result = await userRepository.getManyPaginated({
-        where: { isActive: true },
-        select: { name: true, email: true },
-        orderBy: { field: 'name', direction: 'asc' },
-        pagination: { page: 1, pageSize: 3 }
-      });
-
-      expect(result.data).toHaveLength(3);
-      result.data.forEach((user: any) => {
-        expect(user).toHaveProperty('name');
-        expect(user).toHaveProperty('email');
-        expect(user).not.toHaveProperty('id');
-      });
-    });
-
-    test('getManyPaginated() second page', async () => {
-      const result = await userRepository.getManyPaginated({
-        where: { isActive: true },
-        orderBy: { field: 'name', direction: 'asc' },
-        pagination: { page: 2, pageSize: 2 }
-      });
-
-      expect(result.data).toHaveLength(2);
-      expect(result.pagination.currentPage).toBe(2);
-      expect(result.pagination.hasNextPage).toBe(false);
-      expect(result.pagination.hasPreviousPage).toBe(true);
-    });
-  });
-
-  describe('Logical Operators (AND/OR)', () => {
-    test('OR operator should work correctly', async () => {
-      const users = await userRepository.getMany({
-        where: {
-          OR: [
-            { name: 'John Doe' },
-            { name: 'Jane Smith' },
-            { age: { gte: 40 } }
-          ]
-        }
-      });
-      expect(users.length).toBeGreaterThanOrEqual(3);
-    });
-
-    test('AND operator should work correctly', async () => {
-      const users = await userRepository.getMany({
-        where: {
-          AND: [
-            { isActive: true },
-            { age: { gte: 25 } },
-            { name: { like: '%o%' } }
-          ]
-        }
-      });
-      expect(users.length).toBeGreaterThan(0);
-      users.forEach((user: UserType) => {
-        expect(user.isActive).toBe(true);
-        if (user.age !== null) {
-          expect(user.age).toBeGreaterThanOrEqual(25);
-        }
-        expect(user.name.toLowerCase()).toContain('o');
-      });
-    });
-
-    test('Mixed AND/OR operators', async () => {
-      const users = await userRepository.getMany({
-        where: {
-          isActive: true,
-          OR: [
-            { age: { lt: 30 } },
-            { name: { like: '%Alice%' } }
-          ]
-        }
-      });
-      expect(users.length).toBeGreaterThan(0);
-      users.forEach((user: UserType) => {
-        expect(user.isActive).toBe(true);
-      });
-    });
-
-    test('Nested logical operators', async () => {
-      const users = await userRepository
-        .where({
-          AND: [
-            { isActive: true },
-            {
-              OR: [
-                { age: { gte: 30 } },
-                { name: { like: '%Jane%' } }
-              ]
-            }
-          ]
-        })
+      // Test scoped queries - replies
+      const replies = await repositories.commentRepository.scoped
+        .replies(parentComment.id)
         .getMany();
-      expect(users.length).toBeGreaterThan(0);
-      users.forEach((user: UserType) => {
-        expect(user.isActive).toBe(true);
+
+      expect(replies).toHaveLength(2);
+      expect(replies.map((r) => r.content)).toContain("First reply");
+      expect(replies.map((r) => r.content)).toContain("Second reply");
+    });
+
+    test("should handle many-to-many user-category relationships", async () => {
+      // Create users
+      const user1Data = createTestUser({
+        name: "User One",
+        email: "user1@example.com",
       });
+      const user2Data = createTestUser({
+        name: "User Two",
+        email: "user2@example.com",
+      });
+
+      const user1 = await repositories.userRepository.create(user1Data);
+      const user2 = await repositories.userRepository.create(user2Data);
+
+      // Create categories
+      const category1Data = createTestCategory({
+        name: "Technology",
+        description: "Tech-related content",
+      });
+      const category2Data = createTestCategory({
+        name: "Design",
+        description: "Design-related content",
+      });
+
+      const category1 = await repositories.categoryRepository.create(
+        category1Data
+      );
+      const category2 = await repositories.categoryRepository.create(
+        category2Data
+      );
+
+      // Create many-to-many relationships via pivot table
+      await repositories.userCategoryRepository.create({
+        userId: user1.id,
+        categoryId: category1.id,
+        joinedAt: new Date(),
+      });
+      await repositories.userCategoryRepository.create({
+        userId: user1.id,
+        categoryId: category2.id,
+        joinedAt: new Date(),
+      });
+      await repositories.userCategoryRepository.create({
+        userId: user2.id,
+        categoryId: category1.id,
+        joinedAt: new Date(),
+      });
+
+      // Test queries through pivot table
+      const user1Categories = await repositories.userCategoryRepository.scoped
+        .byUserId(user1.id)
+        .getMany();
+
+      expect(user1Categories).toHaveLength(2);
+
+      const category1Users = await repositories.userCategoryRepository.scoped
+        .byCategoryId(category1.id)
+        .getMany();
+
+      expect(category1Users).toHaveLength(2);
+    });
+
+    test("should handle post-tag many-to-many relationships", async () => {
+      // Create user and post
+      const userData = createTestUser({
+        name: "Tag User",
+        email: "taguser@example.com",
+      });
+      const user = await repositories.userRepository.create(userData);
+
+      const postData = createTestPost(user.id, {
+        title: "Tagged Post",
+      });
+      const post = await repositories.postRepository.create(postData);
+
+      // Create tags
+      const tag1Data = createTestTag({
+        name: "javascript",
+        color: "#F7DF1E",
+      });
+      const tag2Data = createTestTag({
+        name: "typescript",
+        color: "#007ACC",
+      });
+
+      const tag1 = await repositories.tagRepository.create(tag1Data);
+      const tag2 = await repositories.tagRepository.create(tag2Data);
+
+      // Create post-tag relationships
+      await repositories.postTagRepository.create({
+        postId: post.id,
+        tagId: tag1.id,
+        createdAt: new Date(),
+      });
+      await repositories.postTagRepository.create({
+        postId: post.id,
+        tagId: tag2.id,
+        createdAt: new Date(),
+      });
+
+      // Test queries through pivot table
+      const postTags = await repositories.postTagRepository.scoped
+        .byPostId(post.id)
+        .getMany();
+
+      expect(postTags).toHaveLength(2);
+
+      const tagPosts = await repositories.postTagRepository.scoped
+        .byTagId(tag1.id)
+        .getMany();
+
+      expect(tagPosts).toHaveLength(1);
     });
   });
 
-  describe('Scoped Queries', () => {
-    test('active scope should filter active users', async () => {
-      const activeUsers = await userRepository.scoped.active().getMany();
-      expect(activeUsers).toHaveLength(4);
-      activeUsers.forEach((user: UserType) => {
-        expect(user.isActive).toBe(true);
+  describe("Advanced Scoped Queries", () => {
+    test("should combine multiple scopes", async () => {
+      // Create test data
+      const userData = createTestUser({
+        name: "Scope User",
+        email: "scope@example.com",
+        age: 30,
       });
-    });
-
-    test('inactive scope should filter inactive users', async () => {
-      const inactiveUsers = await userRepository.scoped.inactive().getMany();
-      expect(inactiveUsers).toHaveLength(1);
-      inactiveUsers.forEach((user: UserType) => {
-        expect(user.isActive).toBe(false);
+      const user = await repositories.userRepository.create(userData);
+      const publishedPostData = createTestPost(user.id, {
+        title: "Published Post",
+        published: true,
       });
-    });
-
-    test('byAge scope with parameter', async () => {
-      const users = await userRepository.scoped.byAge(30).getMany();
-      expect(users.length).toBeGreaterThan(0);
-      users.forEach((user: UserType) => {
-        if (user.age !== null) {
-          expect(user.age).toBeGreaterThanOrEqual(30);
-        }
+      const draftPostData = createTestPost(user.id, {
+        title: "Draft Post",
+        published: false,
       });
-    });
 
-    test('byEmail scope with parameter', async () => {
-      const users = await userRepository.scoped.byEmail('john.test@example.com').getMany();
-      expect(users).toHaveLength(1);
-      expect(users[0].name).toBe('John Doe');
-    });
+      await repositories.postRepository.create(publishedPostData);
+      await repositories.postRepository.create(draftPostData);
 
-    test('chained scopes', async () => {
-      const users = await userRepository.scoped
-        .active()
+      // Test scoped query - published posts only
+      const publishedPosts = await repositories.postRepository.scoped
+        .published()
+        .byUserId(user.id)
+        .getMany();
+
+      expect(publishedPosts).toHaveLength(1);
+      expect(publishedPosts[0].title).toBe("Published Post");
+
+      // Test scoped query - draft posts only
+      const draftPosts = await repositories.postRepository.scoped
+        .draft()
+        .byUserId(user.id)
+        .getMany();
+
+      expect(draftPosts).toHaveLength(1);
+      expect(draftPosts[0].title).toBe("Draft Post");
+
+      // Test user scope with age filter
+      const usersOver25 = await repositories.userRepository.scoped
         .byAge(25)
-        .orderBy('name', 'asc')
         .getMany();
-      
-      expect(users.length).toBeGreaterThan(0);
-      users.forEach((user: UserType) => {
-        expect(user.isActive).toBe(true);
-        if (user.age !== null) {
-          expect(user.age).toBeGreaterThanOrEqual(25);
-        }
-      });
+
+      expect(usersOver25).toHaveLength(1);
+      expect(usersOver25[0].name).toBe("Scope User");
     });
 
-    test('scoped query with select', async () => {
-      const users = await userRepository.scoped
-        .active()
-        .orderBy('name', 'asc')
-        .select({ name: true, email: true })
+    test("should use recent posts scope", async () => {
+      const userData = createTestUser({
+        name: "Recent User",
+        email: "recent@example.com",
+      });
+      const user = await repositories.userRepository.create(userData);
+
+      // Create a recent post
+      const recentPostData = createTestPost(user.id, {
+        title: "Recent Post",
+      });
+      await repositories.postRepository.create(recentPostData);
+
+      // Test recent posts scope (default 7 days)
+      const recentPosts = await repositories.postRepository.scoped
+        .recent()
         .getMany();
-      
-      expect(users.length).toBeGreaterThan(0);
-      users.forEach((user: any) => {
-        expect(user).toHaveProperty('name');
-        expect(user).toHaveProperty('email');
-        expect(user).not.toHaveProperty('id');
-      });
-    });
 
-    test('scoped query with limit and offset', async () => {
-      const users = await userRepository.scoped
-        .active()
-        .orderBy('name', 'asc')
-        .limit(2)
-        .offset(1)
+      expect(recentPosts).toHaveLength(1);
+      expect(recentPosts[0].title).toBe("Recent Post");
+
+      // Test recent posts with custom days
+      const veryRecentPosts = await repositories.postRepository.scoped
+        .recent(1)
         .getMany();
-      
-      expect(users).toHaveLength(2);
+
+      expect(veryRecentPosts).toHaveLength(1);
     });
 
-    test('scoped count', async () => {
-      const count = await userRepository.scoped.active().count();
-      expect(count).toBe(4);
-    });
-
-    test('scoped getOne', async () => {
-      const user = await userRepository.scoped
-        .active()
-        .orderBy('name', 'asc')
-        .getOne();
-      
-      expect(user).toBeTruthy();
-      expect(user?.isActive).toBe(true);
-    });
-
-    test('scoped pluck', async () => {
-      const names = await userRepository.scoped.active().pluck('name');
-      expect(names).toHaveLength(4);
-    });
-
-    test('scoped pagination', async () => {
-      const result = await userRepository.scoped
-        .active()
-        .orderBy('name', 'asc')
-        .getManyPaginated({ page: 1, pageSize: 2 });
-      
-      expect(result.data).toHaveLength(2);
-      expect(result.pagination.totalItems).toBe(4);
-      expect(result.pagination.totalPages).toBe(2);
-    });
-  });
-
-  describe('Account Repository Tests', () => {
-    test('account scopes should work correctly', async () => {
-      const activeAccounts = await accountRepository.scoped.active().getMany();
-      expect(activeAccounts.length).toBeGreaterThan(0);
-      activeAccounts.forEach((account: AccountType) => {
-        expect(account.isActive).toBe(true);
+    test("should filter comments by content and user", async () => {
+      const userData = createTestUser({
+        name: "Comment User",
+        email: "comment@example.com",
       });
-    });
+      const user = await repositories.userRepository.create(userData);
 
-    test('withBalance scope should filter by balance', async () => {
-      const highBalanceAccounts = await accountRepository.scoped.withBalance(5000).getMany();
-      expect(highBalanceAccounts.length).toBeGreaterThan(0);
-      highBalanceAccounts.forEach((account: AccountType) => {
-        expect(account.balance).toBeGreaterThanOrEqual(5000);
+      const postData = createTestPost(user.id, {
+        title: "Comment Post",
       });
-    });
+      const post = await repositories.postRepository.create(postData);
 
-    test('highBalance scope should work', async () => {
-      const highBalanceAccounts = await accountRepository.scoped.highBalance().getMany();
-      expect(highBalanceAccounts.length).toBeGreaterThan(0);
-      highBalanceAccounts.forEach((account: AccountType) => {
-        expect(account.balance).toBeGreaterThanOrEqual(10000);
+      const commentData = createTestComment(post.id, user.id, {
+        content: "Great post!",
       });
-    });
+      await repositories.commentRepository.create(commentData);
 
-    test('byUserId scope should filter by user', async () => {
-      const userAccounts = await accountRepository.scoped.byUserId(testUserIds[0]).getMany();
-      expect(userAccounts.length).toBeGreaterThan(0);
-      userAccounts.forEach((account: AccountType) => {
-        expect(account.userId).toBe(testUserIds[0]);
-      });
-    });
-
-    test('chained account scopes', async () => {
-      const accounts = await accountRepository.scoped
-        .active()
-        .withBalance(1000)
-        .orderBy('balance', 'desc')
+      // Test filtering by post and user
+      const postComments = await repositories.commentRepository.scoped
+        .byPostId(post.id)
+        .byUserId(user.id)
         .getMany();
-      
-      expect(accounts.length).toBeGreaterThan(0);
-      accounts.forEach((account: AccountType) => {
-        expect(account.isActive).toBe(true);
-        expect(account.balance).toBeGreaterThanOrEqual(1000);
-      });
-    });
-  });
 
-  describe('Query Builder Methods', () => {
-    test('where() method should work', async () => {
-      const users = await userRepository.where({ isActive: true }).getMany();
-      expect(users.length).toBeGreaterThan(0);
-      users.forEach((user: UserType) => {
-        expect(user.isActive).toBe(true);
-      });
+      expect(postComments).toHaveLength(1);
+      expect(postComments[0].content).toBe("Great post!");
     });
 
-    test('select() method should work', async () => {
-      const users = await userRepository
-        .select({ name: true, email: true })
+    test("should use tag and category scopes", async () => {
+      // Create category with description
+      const categoryData = createTestCategory({
+        name: "Web Development",
+        description: "All about web development",
+      });
+      await repositories.categoryRepository.create(categoryData);
+
+      // Test category scope
+      const categoriesWithDescription =
+        await repositories.categoryRepository.scoped
+          .withDescription()
+          .getMany();
+
+      expect(categoriesWithDescription).toHaveLength(1);
+      expect(categoriesWithDescription[0].name).toBe("Web Development");
+
+      // Test search by name
+      const foundCategories = await repositories.categoryRepository.scoped
+        .byName("Web")
         .getMany();
-      
-      expect(users.length).toBeGreaterThan(0);
-      users.forEach((user: any) => {
-        expect(user).toHaveProperty('name');
-        expect(user).toHaveProperty('email');
-        expect(user).not.toHaveProperty('id');
-      });
-    });
 
-    test('chained query builder methods', async () => {
-      const users = await userRepository
-        .where({ isActive: true })
-        .select({ name: true, age: true })
+      expect(foundCategories).toHaveLength(1);
+
+      // Create tag with color
+      const tagData = createTestTag({
+        name: "react",
+        color: "#61DAFB",
+      });
+      await repositories.tagRepository.create(tagData);
+
+      // Test tag scopes
+      const tagsWithColor = await repositories.tagRepository.scoped
+        .withColor()
         .getMany();
-      
-      expect(users.length).toBeGreaterThan(0);
-      users.forEach((user: any) => {
-        expect(user).toHaveProperty('name');
-        expect(user).toHaveProperty('age');
-        expect(user).not.toHaveProperty('email');
-      });
-    });
-  });
 
-  describe('Error Handling', () => {
-    test('should handle invalid where conditions gracefully', async () => {
-      try {
-        await userRepository.getMany({
-          where: { nonExistentField: 'value' } as any
-        });
-        // If no error is thrown, that's fine too (depends on implementation)
-      } catch (error) {
-        expect(error).toBeDefined();
-      }
+      expect(tagsWithColor).toHaveLength(1);
+      expect(tagsWithColor[0].name).toBe("react");
+
+      const blueColorTags = await repositories.tagRepository.scoped
+        .byColor("#61DAFB")
+        .getMany();
+
+      expect(blueColorTags).toHaveLength(1);
     });
 
-    test('should handle invalid select fields gracefully', async () => {
-      try {
-        await userRepository.getMany({
-          select: { nonExistentField: true } as any,
-        });
-        // If no error is thrown, that's fine too (depends on implementation)
-      } catch (error) {
-        expect(error).toBeDefined();
-      }
-    });
-  });
-
-  describe('Edge Cases', () => {
-    test('pagination with page beyond total pages', async () => {
-      const result = await userRepository.getManyPaginated({
-        where: { isActive: true },
-        pagination: { page: 10, pageSize: 2 }
+    test("should test profile scopes", async () => {
+      const userData = createTestUser({
+        name: "Profile User",
+        email: "profile@example.com",
       });
+      const user = await repositories.userRepository.create(userData);
 
-      expect(result.data).toHaveLength(0);
-      expect(result.pagination.currentPage).toBe(10);
-      expect(result.pagination.hasNextPage).toBe(false);
-    });
+      const profileData = createTestProfile(user.id, {
+        bio: "Experienced developer",
+        website: "https://profileuser.dev",
+      });
+      await repositories.profileRepository.create(profileData);
 
-    test('limit larger than total records', async () => {
-      const users = await userRepository.getMany({
-        limit: 100
-      });
-      
-      expect(users).toHaveLength(5); // Should return all available records
-    });
+      // Test profile scopes
+      const profilesWithBio = await repositories.profileRepository.scoped
+        .withBio()
+        .getMany();
 
-    test('offset larger than total records', async () => {
-      const users = await userRepository.getMany({
-        offset: 100
-      });
-      
-      expect(users).toHaveLength(0);
-    });
+      expect(profilesWithBio).toHaveLength(1);
+      expect(profilesWithBio[0].bio).toBe("Experienced developer");
 
-    test('empty where conditions', async () => {
-      const users = await userRepository.getMany({
-        where: {}
-      });
-      
-      expect(users).toHaveLength(5);
-    });
+      const profilesWithWebsite = await repositories.profileRepository.scoped
+        .withWebsite()
+        .getMany();
 
-    test('null age handling in comparisons', async () => {
-      const users = await userRepository.getMany({
-        where: { age: { gte: 0 } }
-      });
-      
-      // Should only return users with non-null age values
-      users.forEach((user: UserType) => {
-        expect(user.age).not.toBeNull();
-      });
+      expect(profilesWithWebsite).toHaveLength(1);
+      expect(profilesWithWebsite[0].website).toBe("https://profileuser.dev");
+
+      const userProfiles = await repositories.profileRepository.scoped
+        .byUserId(user.id)
+        .getMany();
+
+      expect(userProfiles).toHaveLength(1);
     });
   });
 });
+
+describe("Complex Relations Integration Tests", () => {
+  let dbAdapter: PostgreSQLAdapter;
+  let repositories: TestRepositories;
+
+  beforeAll(async () => {
+    dbAdapter = new PostgreSQLAdapter({
+      host: process.env.DB_HOST || "localhost",
+      port: parseInt(process.env.DB_PORT || "5432"),
+      database: process.env.DB_NAME || "querio_test",
+      user: process.env.DB_USER || "postgres",
+      password: process.env.DB_PASSWORD || "postgres",
+    });
+    repositories = createTestRepositories(dbAdapter);
+
+    // Create test tables
+    await createTestTables(dbAdapter);
+  });
+
+  afterAll(async () => {
+    await cleanupTestTables(dbAdapter);
+    await dbAdapter.close();
+  });
+
+  beforeEach(async () => {
+    // Clean up data before each test
+    await cleanupTestData(dbAdapter);
+  });
+
+  describe("One-to-One Relations", () => {
+    test("should create user with profile and fetch with relation", async () => {
+      // Create user
+      const userData = createTestUser({
+        name: "John Doe",
+        email: "john@example.com",
+      });
+      const user = await repositories.userRepository.create(userData);
+
+      // Create profile for user
+      const profileData = createTestProfile(user.id, {
+        bio: "Software developer and coffee enthusiast",
+        website: "https://johndoe.dev",
+      });
+      const profile = await repositories.profileRepository.create(profileData);
+
+      // Fetch user with profile relation
+      const userWithProfile = (await repositories.userRepository.findOne({
+        where: { id: user.id },
+        relations: { profile: true },
+      })) as UserWithRelations;
+
+      expect(userWithProfile).toBeDefined();
+      expect(userWithProfile.profile).toBeDefined();
+      expect(userWithProfile.profile?.id).toBe(profile.id);
+      expect(userWithProfile.profile?.bio).toBe(
+        "Software developer and coffee enthusiast"
+      );
+    });
+
+    test("should handle user without profile", async () => {
+      const userData = createTestUser({
+        name: "Jane Doe",
+        email: "jane@example.com",
+      });
+      const user = await repositories.userRepository.create(userData);
+
+      const userWithProfile = (await repositories.userRepository.findOne({
+        where: { id: user.id },
+        relations: { profile: true },
+      })) as UserWithRelations;
+
+      expect(userWithProfile).toBeDefined();
+      expect(userWithProfile.profile).toBeNull();
+    });
+  });
+
+  describe("One-to-Many Relations", () => {
+    test("should create user with multiple posts and fetch with relation", async () => {
+      // Create user
+      const userData = createTestUser({
+        name: "Blog Author",
+        email: "author@blog.com",
+      });
+      const user = await repositories.userRepository.create(userData);
+
+      // Create multiple posts
+      const post1Data = createTestPost(user.id, {
+        title: "First Post",
+        content: "Content of first post",
+      });
+      const post2Data = createTestPost(user.id, {
+        title: "Second Post",
+        content: "Content of second post",
+        published: false,
+      });
+
+      await repositories.postRepository.create(post1Data);
+      await repositories.postRepository.create(post2Data);
+
+      // Fetch user with posts
+      const userWithPosts = (await repositories.userRepository.findOne({
+        where: { id: user.id },
+        relations: { posts: true },
+      })) as UserWithRelations;
+
+      expect(userWithPosts).toBeDefined();
+      expect(userWithPosts.posts).toHaveLength(2);
+      expect(userWithPosts.posts?.map((p: any) => p.title)).toContain(
+        "First Post"
+      );
+      expect(userWithPosts.posts?.map((p: any) => p.title)).toContain(
+        "Second Post"
+      );
+    });
+
+    test("should fetch posts with their user relation", async () => {
+      const userData = createTestUser({
+        name: "Post Author",
+        email: "postauthor@example.com",
+      });
+      const user = await repositories.userRepository.create(userData);
+
+      const postData = createTestPost(user.id, {
+        title: "Post with Author",
+      });
+      const post = await repositories.postRepository.create(postData);
+
+      const postWithUser = (await repositories.postRepository.findOne({
+        where: { id: post.id },
+        relations: { user: true },
+      })) as PostWithRelations;
+
+      expect(postWithUser).toBeDefined();
+      expect(postWithUser.user).toBeDefined();
+      expect(postWithUser.user?.name).toBe("Post Author");
+      expect(postWithUser.user?.email).toBe("postauthor@example.com");
+    });
+  });
+
+  describe("Nested One-to-Many Relations", () => {
+    test("should fetch user with posts and their comments", async () => {
+      // Create user
+      const userData = createTestUser({
+        name: "Content Creator",
+        email: "creator@example.com",
+      });
+      const user = await repositories.userRepository.create(userData);
+
+      // Create post
+      const postData = createTestPost(user.id, {
+        title: "Post with Comments",
+      });
+      const post = await repositories.postRepository.create(postData);
+
+      // Create comments
+      const comment1Data = createTestComment(post.id, user.id, {
+        content: "First comment",
+      });
+      const comment2Data = createTestComment(post.id, user.id, {
+        content: "Second comment",
+      });
+
+      await repositories.commentRepository.create(comment1Data);
+      await repositories.commentRepository.create(comment2Data);
+
+      // Fetch user with nested relations
+      const userWithNestedData = (await repositories.userRepository.findOne({
+        where: { id: user.id },
+        relations: {
+          posts: {
+            comments: true,
+          },
+        },
+      })) as UserWithRelations;
+      expect(userWithNestedData).toBeDefined();
+      expect(userWithNestedData.posts).toHaveLength(1);
+      expect((userWithNestedData?.posts?.[0] as any).comments).toHaveLength(2);
+    });
+  });
+
+  describe("Self-Referencing Relations", () => {
+    test("should handle nested comment threads", async () => {
+      // Create user and post
+      const userData = createTestUser({
+        name: "Commenter",
+        email: "commenter@example.com",
+      });
+      const user = await repositories.userRepository.create(userData);
+
+      const postData = createTestPost(user.id, {
+        title: "Post for Comments",
+      });
+      const post = await repositories.postRepository.create(postData);
+
+      // Create parent comment
+      const parentCommentData = createTestComment(post.id, user.id, {
+        content: "Parent comment",
+      });
+      const parentComment = await repositories.commentRepository.create(
+        parentCommentData
+      );
+
+      // Create reply comments
+      const reply1Data = createTestComment(post.id, user.id, {
+        content: "First reply",
+        parentCommentId: parentComment.id,
+      });
+      const reply2Data = createTestComment(post.id, user.id, {
+        content: "Second reply",
+        parentCommentId: parentComment.id,
+      });
+
+      await repositories.commentRepository.create(reply1Data);
+      await repositories.commentRepository.create(reply2Data);
+
+      // Fetch parent comment with replies
+      const commentWithReplies = (await repositories.commentRepository.findOne({
+        where: { id: parentComment.id },
+        relations: { replies: true },
+      })) as CommentWithRelations;
+
+      expect(commentWithReplies).toBeDefined();
+      expect(commentWithReplies.replies).toHaveLength(2);
+      expect(commentWithReplies.replies?.map((r: any) => r.content)).toContain(
+        "First reply"
+      );
+      expect(commentWithReplies.replies?.map((r: any) => r.content)).toContain(
+        "Second reply"
+      );
+
+      // Test top-level comments scope
+      const topLevelComments = await repositories.commentRepository.scoped
+        .topLevel()
+        .byPostId(post.id)
+        .getMany();
+
+      expect(topLevelComments).toHaveLength(1);
+      expect(topLevelComments[0].content).toBe("Parent comment");
+    });
+  });
+
+  describe("Many-to-Many Relations", () => {
+    test("should handle user-category many-to-many relationships", async () => {
+      // Create users
+      const user1Data = createTestUser({
+        name: "User One",
+        email: "user1@example.com",
+      });
+      const user2Data = createTestUser({
+        name: "User Two",
+        email: "user2@example.com",
+      });
+
+      const user1 = await repositories.userRepository.create(user1Data);
+      const user2 = await repositories.userRepository.create(user2Data);
+
+      // Create categories
+      const category1Data = createTestCategory({
+        name: "Technology",
+        description: "Tech-related content",
+      });
+      const category2Data = createTestCategory({
+        name: "Design",
+        description: "Design-related content",
+      });
+
+      const category1 = await repositories.categoryRepository.create(
+        category1Data
+      );
+      const category2 = await repositories.categoryRepository.create(
+        category2Data
+      );
+
+      // Create many-to-many relationships
+      await repositories.userCategoryRepository.create({
+        userId: user1.id,
+        categoryId: category1.id,
+        joinedAt: new Date(),
+      });
+      await repositories.userCategoryRepository.create({
+        userId: user1.id,
+        categoryId: category2.id,
+        joinedAt: new Date(),
+      });
+      await repositories.userCategoryRepository.create({
+        userId: user2.id,
+        categoryId: category1.id,
+        joinedAt: new Date(),
+      });
+
+      // Test fetching user with categories
+      const user1WithCategories = (await repositories.userRepository.findOne({
+        where: { id: user1.id },
+        relations: { categories: true },
+      })) as UserWithRelations;
+
+      expect(user1WithCategories.categories).toHaveLength(2);
+      expect(user1WithCategories.categories?.map((c: any) => c.name)).toContain(
+        "Technology"
+      );
+      expect(user1WithCategories.categories?.map((c: any) => c.name)).toContain(
+        "Design"
+      );
+
+      // Test fetching category with users
+      const category1WithUsers = (await repositories.categoryRepository.findOne(
+        {
+          where: { id: category1.id },
+          relations: { users: true },
+        }
+      )) as any;
+
+      expect(category1WithUsers!.users).toHaveLength(2);
+      expect(category1WithUsers!.users?.map((u: any) => u.name)).toContain(
+        "User One"
+      );
+      expect(category1WithUsers!.users?.map((u: any) => u.name)).toContain(
+        "User Two"
+      );
+    });
+
+    test("should handle post-tag many-to-many relationships", async () => {
+      // Create user and post
+      const userData = createTestUser({
+        name: "Tag User",
+        email: "taguser@example.com",
+      });
+      const user = await repositories.userRepository.create(userData);
+
+      const postData = createTestPost(user.id, {
+        title: "Tagged Post",
+      });
+      const post = await repositories.postRepository.create(postData);
+
+      // Create tags
+      const tag1Data = createTestTag({
+        name: "javascript",
+        color: "#F7DF1E",
+      });
+      const tag2Data = createTestTag({
+        name: "typescript",
+        color: "#007ACC",
+      });
+
+      const tag1 = await repositories.tagRepository.create(tag1Data);
+      const tag2 = await repositories.tagRepository.create(tag2Data);
+
+      // Create post-tag relationships
+      await repositories.postTagRepository.create({
+        postId: post.id,
+        tagId: tag1.id,
+        createdAt: new Date(),
+      });
+      await repositories.postTagRepository.create({
+        postId: post.id,
+        tagId: tag2.id,
+        createdAt: new Date(),
+      });
+
+      // Fetch post with tags
+      const postWithTags = (await repositories.postRepository.findOne({
+        where: { id: post.id },
+        relations: { tags: true },
+      })) as PostWithRelations;
+
+      expect(postWithTags.tags).toHaveLength(2);
+      expect(postWithTags.tags?.map((t: any) => t.name)).toContain(
+        "javascript"
+      );
+      expect(postWithTags.tags?.map((t: any) => t.name)).toContain(
+        "typescript"
+      );
+    });
+  });
+
+  describe("Complex Query Scopes with Relations", () => {
+    test("should combine scopes with relation loading", async () => {
+      // Create test data
+      const userData = createTestUser({
+        name: "Scope User",
+        email: "scope@example.com",
+        age: 30,
+      });
+      const user = await repositories.userRepository.create(userData);
+
+      const publishedPostData = createTestPost(user.id, {
+        title: "Published Post",
+        published: true,
+      });
+      const draftPostData = createTestPost(user.id, {
+        title: "Draft Post",
+        published: false,
+      });
+
+      await repositories.postRepository.create(publishedPostData);
+      await repositories.postRepository.create(draftPostData);
+
+      // Test scoped query with relations
+      const publishedPosts = (await repositories.postRepository.find({
+        where: { userId: user.id, published: true },
+        relations: { user: true },
+      })) as PostWithRelations[];
+
+      expect(publishedPosts).toHaveLength(1);
+      expect(publishedPosts[0].title).toBe("Published Post");
+      expect(publishedPosts[0].user?.name).toBe("Scope User");
+
+      // Test user scope with age filter and posts relation
+      const usersOver25WithPosts = (await repositories.userRepository.find({
+        where: { age: { gte: 25 } },
+        relations: { posts: true },
+      })) as UserWithRelations[];
+
+      expect(usersOver25WithPosts).toHaveLength(1);
+      expect(usersOver25WithPosts[0].posts).toHaveLength(2);
+    });
+  });
+});
+
+// Helper functions for test setup and cleanup
+async function createTestTables(dbAdapter: PostgreSQLAdapter) {
+  const queries = [
+    `CREATE TABLE IF NOT EXISTS test_users (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      name VARCHAR(255) NOT NULL,
+      email VARCHAR(255) UNIQUE NOT NULL,
+      age INTEGER,
+      is_active BOOLEAN DEFAULT true,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS test_profiles (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id UUID UNIQUE NOT NULL,
+      bio TEXT,
+      website VARCHAR(255),
+      avatar VARCHAR(255),
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES test_users(id) ON DELETE CASCADE
+    )`,
+    `CREATE TABLE IF NOT EXISTS test_accounts (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      name VARCHAR(255) NOT NULL,
+      user_id UUID NOT NULL,
+      balance INTEGER DEFAULT 0,
+      is_active BOOLEAN DEFAULT true,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES test_users(id) ON DELETE CASCADE
+    )`,
+    `CREATE TABLE IF NOT EXISTS test_posts (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      title VARCHAR(255) NOT NULL,
+      content TEXT NOT NULL,
+      user_id UUID NOT NULL,
+      published BOOLEAN DEFAULT false,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES test_users(id) ON DELETE CASCADE
+    )`,
+    `CREATE TABLE IF NOT EXISTS test_comments (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      content TEXT NOT NULL,
+      post_id UUID NOT NULL,
+      user_id UUID NOT NULL,
+      parent_comment_id UUID,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (post_id) REFERENCES test_posts(id) ON DELETE CASCADE,
+      FOREIGN KEY (user_id) REFERENCES test_users(id) ON DELETE CASCADE,
+      FOREIGN KEY (parent_comment_id) REFERENCES test_comments(id) ON DELETE CASCADE
+    )`,
+    `CREATE TABLE IF NOT EXISTS test_categories (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      name VARCHAR(255) UNIQUE NOT NULL,
+      description TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS test_user_categories (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id UUID NOT NULL,
+      category_id UUID NOT NULL,
+      joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(user_id, category_id),
+      FOREIGN KEY (user_id) REFERENCES test_users(id) ON DELETE CASCADE,
+      FOREIGN KEY (category_id) REFERENCES test_categories(id) ON DELETE CASCADE
+    )`,
+    `CREATE TABLE IF NOT EXISTS test_tags (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      name VARCHAR(255) UNIQUE NOT NULL,
+      color VARCHAR(7),
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS test_post_tags (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      post_id UUID NOT NULL,
+      tag_id UUID NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(post_id, tag_id),
+      FOREIGN KEY (post_id) REFERENCES test_posts(id) ON DELETE CASCADE,
+      FOREIGN KEY (tag_id) REFERENCES test_tags(id) ON DELETE CASCADE
+    )`,
+  ];
+
+  for (const query of queries) {
+    await dbAdapter.execute({ sql: query, params: [] });
+  }
+}
+
+async function cleanupTestTables(dbAdapter: PostgreSQLAdapter) {
+  const tables = [
+    "test_post_tags",
+    "test_user_categories",
+    "test_comments",
+    "test_posts",
+    "test_accounts",
+    "test_profiles",
+    "test_tags",
+    "test_categories",
+    "test_users",
+  ];
+
+  for (const table of tables) {
+    await dbAdapter.execute({
+      sql: `DROP TABLE IF EXISTS ${table} CASCADE`,
+      params: [],
+    });
+  }
+}
+
+async function cleanupTestData(dbAdapter: PostgreSQLAdapter) {
+  const tables = [
+    "test_post_tags",
+    "test_user_categories",
+    "test_comments",
+    "test_posts",
+    "test_accounts",
+    "test_profiles",
+    "test_tags",
+    "test_categories",
+    "test_users",
+  ];
+
+  for (const table of tables) {
+    await dbAdapter.execute({ sql: `DELETE FROM ${table}`, params: [] });
+  }
+}

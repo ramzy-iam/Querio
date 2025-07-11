@@ -18,7 +18,7 @@ export function generateCreateTableSQL(
   
   // Drop table if exists
   if (dropIfExists) {
-    sql += `DROP TABLE IF EXISTS ${fullTableName};\n\n`;
+    sql += `DROP TABLE IF EXISTS ${fullTableName} CASCADE;\n\n`;
   }
   
   // Create enum types first and build a map for reuse
