@@ -39,65 +39,85 @@ export interface RelationDefinition {
   [relationName: string]: Relation;
 }
 
-// Relation builder helpers
-export function hasOne(
-  targetModel: string,
-  foreignKey: string,
+// Type for model instance to enable IntelliSense
+export interface ModelInstanceRef {
+  readonly name: string;
+  readonly table: string;
+  [key: string]: any;
+}
+
+// Helper type to extract foreign key names from a type
+export type KeysOfType<T, U> = {
+  [K in keyof T]: T[K] extends U ? K : never;
+}[keyof T];
+
+// Type for foreign key fields (string fields that could be foreign keys)
+export type ForeignKeyField<T> = KeysOfType<T, string> | KeysOfType<T, string | null>;
+
+// Relation builder helpers - accept both model references and table names for simplicity
+export function hasOne<T>(
+  targetModel: ModelInstanceRef | string,
+  foreignKey: ForeignKeyField<T> | string,
   localKey: string = "id",
   as?: string
 ): HasOneRelation {
+  const modelName = typeof targetModel === 'string' ? targetModel : targetModel.name;
   return {
     type: "hasOne",
-    targetModel,
-    foreignKey,
+    targetModel: modelName,
+    foreignKey: foreignKey as string,
     localKey,
     ...(as && { as }),
   };
 }
 
-export function hasMany(
-  targetModel: string,
-  foreignKey: string,
+export function hasMany<T>(
+  targetModel: ModelInstanceRef | string,
+  foreignKey: ForeignKeyField<T> | string,
   localKey: string = "id",
   as?: string
 ): HasManyRelation {
+  const modelName = typeof targetModel === 'string' ? targetModel : targetModel.name;
   return {
     type: "hasMany",
-    targetModel,
-    foreignKey,
+    targetModel: modelName,
+    foreignKey: foreignKey as string,
     localKey,
     ...(as && { as }),
   };
 }
 
-export function belongsTo(
-  targetModel: string,
-  foreignKey: string,
+export function belongsTo<T>(
+  targetModel: ModelInstanceRef | string,
+  foreignKey: ForeignKeyField<T> | string,
   localKey: string = "id",
   as?: string
 ): BelongsToRelation {
+  const modelName = typeof targetModel === 'string' ? targetModel : targetModel.name;
   return {
     type: "belongsTo",
-    targetModel,
-    foreignKey,
+    targetModel: modelName,
+    foreignKey: foreignKey as string,
     localKey,
     ...(as && { as }),
   };
 }
 
 export function belongsToMany(
-  targetModel: string,
-  pivotTable: string,
+  targetModel: ModelInstanceRef | string,
+  pivotTable: ModelInstanceRef | string,
   pivotForeignKey: string,
   pivotRelatedKey: string,
   localKey: string = "id",
   as?: string
 ): BelongsToManyRelation {
+  const modelName = typeof targetModel === 'string' ? targetModel : targetModel.name;
+  const pivotTableName = typeof pivotTable === 'string' ? pivotTable : pivotTable.table;
   return {
     type: "belongsToMany",
-    targetModel,
+    targetModel: modelName,
     foreignKey: "", // Not used for many-to-many
-    pivotTable,
+    pivotTable: pivotTableName,
     pivotForeignKey,
     pivotRelatedKey,
     pivotLocalKey: localKey,

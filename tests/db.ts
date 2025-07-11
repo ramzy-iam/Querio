@@ -1,10 +1,3 @@
-/**
- * Test Types and Repository Definitions
- *
- * This file defines all the types, models, and repositories used in tests
- * with proper type annotations for better type safety.
- */
-
 import {
   defineModel,
   createRepository,
@@ -99,7 +92,7 @@ export interface PostTagType {
   createdAt: Date;
 }
 
-// Define models
+// Define models with all relations inline
 export const User = defineModel<UserType>("test_users", {
   table: "test_users",
   fields: {
@@ -131,11 +124,10 @@ export const Account = defineModel<AccountType>("test_accounts", {
     balance: integer({ default: 0 }),
     isActive: boolean({ default: true }),
     createdAt: timestamp(),
-    user: belongsTo("test_users", "userId"),
+    user: belongsTo(User, "userId"),
   },
 });
 
-// Profile model (one-to-one with User)
 export const Profile = defineModel<ProfileType>("test_profiles", {
   table: "test_profiles",
   fields: {
@@ -145,11 +137,10 @@ export const Profile = defineModel<ProfileType>("test_profiles", {
     website: nullable.text(),
     avatar: nullable.text(),
     createdAt: timestamp(),
-    user: belongsTo("test_users", "userId"),
+    user: belongsTo(User, "userId"),
   },
 });
 
-// Post model (many-to-one with User)
 export const Post = defineModel<PostType>("test_posts", {
   table: "test_posts",
   fields: {
@@ -160,13 +151,12 @@ export const Post = defineModel<PostType>("test_posts", {
     published: boolean({ default: false }),
     createdAt: timestamp(),
     updatedAt: timestamp(),
-    user: belongsTo("test_users", "userId"),
+    user: belongsTo(User, "userId"),
     comments: hasMany("test_comments", "postId"),
     tags: belongsToMany("test_tags", "test_post_tags", "postId", "tagId"),
   },
 });
 
-// Comment model (nested one-to-many with Post and self-referencing)
 export const Comment = defineModel<CommentType>("test_comments", {
   table: "test_comments",
   fields: {
@@ -176,14 +166,13 @@ export const Comment = defineModel<CommentType>("test_comments", {
     userId: uuid(),
     parentCommentId: nullable.uuid(),
     createdAt: timestamp(),
-    post: belongsTo("test_posts", "postId"),
-    user: belongsTo("test_users", "userId"),
+    post: belongsTo(Post, "postId"),
+    user: belongsTo(User, "userId"),
     parentComment: belongsTo("test_comments", "parentCommentId"),
     replies: hasMany("test_comments", "parentCommentId"),
   },
 });
 
-// Category model (many-to-many with User)
 export const Category = defineModel<CategoryType>("test_categories", {
   table: "test_categories",
   fields: {
@@ -200,7 +189,6 @@ export const Category = defineModel<CategoryType>("test_categories", {
   },
 });
 
-// UserCategory pivot model
 export const UserCategory = defineModel<UserCategoryType>(
   "test_user_categories",
   {
@@ -210,13 +198,12 @@ export const UserCategory = defineModel<UserCategoryType>(
       userId: uuid(),
       categoryId: uuid(),
       joinedAt: timestamp(),
-      user: belongsTo("test_users", "userId"),
-      category: belongsTo("test_categories", "categoryId"),
+      user: belongsTo(User, "userId"),
+      category: belongsTo(Category, "categoryId"),
     },
   }
 );
 
-// Tag model (many-to-many with Post)
 export const Tag = defineModel<TagType>("test_tags", {
   table: "test_tags",
   fields: {
@@ -228,7 +215,6 @@ export const Tag = defineModel<TagType>("test_tags", {
   },
 });
 
-// PostTag pivot model
 export const PostTag = defineModel<PostTagType>("test_post_tags", {
   table: "test_post_tags",
   fields: {
@@ -236,8 +222,8 @@ export const PostTag = defineModel<PostTagType>("test_post_tags", {
     postId: uuid(),
     tagId: uuid(),
     createdAt: timestamp(),
-    post: belongsTo("test_posts", "postId"),
-    tag: belongsTo("test_tags", "tagId"),
+    post: belongsTo(Post, "postId"),
+    tag: belongsTo(Tag, "tagId"),
   },
 });
 
