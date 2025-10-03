@@ -9,6 +9,28 @@ export type FieldType =
   | "json"
   | "enum";
 
+// Type inference from field definitions
+export type InferFieldType<F extends FieldDefinition> = 
+  F['type'] extends 'text' ? string :
+  F['type'] extends 'uuid' ? string :
+  F['type'] extends 'integer' ? number :
+  F['type'] extends 'boolean' ? boolean :
+  F['type'] extends 'timestamp' ? Date :
+  F['type'] extends 'decimal' ? number :
+  F['type'] extends 'json' ? any :
+  F['type'] extends 'enum' ? (F['enumValues'] extends readonly (infer E)[] ? E : string) :
+  unknown;
+
+export type InferNullableFieldType<F extends FieldDefinition> = 
+  F['nullable'] extends true 
+    ? InferFieldType<F> | null 
+    : InferFieldType<F>;
+
+// Infer entity type from fields definition
+export type InferEntityType<T extends FieldsDefinition> = {
+  [K in keyof T]: InferNullableFieldType<T[K]>;
+};
+
 // Pagination interfaces
 export interface PaginationInput {
   page: number; // Page number (1-based)

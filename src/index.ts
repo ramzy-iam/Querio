@@ -45,6 +45,13 @@ export {
   ConsoleQueryLogger,
 } from "./types";
 
+// Type inference utilities
+export type {
+  InferEntityType,
+  InferFieldType,
+  InferNullableFieldType,
+} from "./types";
+
 export { createRepository } from "./repository/Repository";
 
 export { PostgreSQLAdapter } from "./adapters/postgres";

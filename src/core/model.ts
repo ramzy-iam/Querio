@@ -3,6 +3,7 @@ import {
   QueryExecutor,
   WhereCondition,
   SelectFields,
+  InferEntityType,
 } from "../types";
 import { QueryBuilder, SelectQueryBuilder } from "../builder/QueryBuilder";
 import { RelationDefinition, WithRelations } from "./relations";
@@ -139,7 +140,20 @@ export function setGlobalExecutor(executor: QueryExecutor): void {
   globalExecutor = executor;
 }
 
+// Overload 1: When fields are provided with 'as const', infer the type
+export function defineModel<const TFields extends FieldsDefinition>(
+  name: string,
+  config: ModelConfiguration & { fields: TFields }
+): ModelInstance<InferEntityType<TFields>>;
+
+// Overload 2: When a type is explicitly provided
 export function defineModel<T>(
+  name: string,
+  config: ModelConfiguration
+): ModelInstance<T>;
+
+// Implementation
+export function defineModel<T = any>(
   name: string,
   config: ModelConfiguration
 ): ModelInstance<T> {
